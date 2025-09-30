@@ -1,8 +1,8 @@
 use std::{net::SocketAddr, str::Utf8Error};
 
-use packets::{ClientOptions, Packet};
+use shared::{ClientOptions, FramedSplitExt, Packet};
 use tokio::{
-    io,
+    io::{self, AsyncWriteExt},
     net::{
         TcpListener, TcpStream,
         tcp::{OwnedReadHalf, OwnedWriteHalf},
@@ -10,32 +10,32 @@ use tokio::{
     sync::mpsc::{self, error::SendError},
     task::JoinHandle,
 };
-use tokio_util::codec::{FramedRead, LengthDelimitedCodec};
+use tokio_util::codec::{self, FramedRead, FramedWrite, LengthDelimitedCodec};
 
 #[derive(Debug, thiserror::Error)]
 enum Error {
-    #[error("Utf8 encoding/decoding failed")]
+    #[error("utf8 encoding/decoding failed")]
     Utf8(#[from] Utf8Error),
 
-    #[error("Sending internal message failed")]
+    #[error("sending internal message failed")]
     Send(#[from] SendError<Message>),
 
-    #[error("IO failure")]
+    #[error("io failure")]
     Io(#[from] io::Error),
 
-    #[error("Packet error")]
-    Packet(#[from] packets::Error),
+    #[error("packet error")]
+    Packet(#[from] shared::Error),
 }
 
 pub enum Message {
     Connection(TcpStream, SocketAddr),
-    Packet(usize, Result<Packet, packets::Error>),
+    Packet(usize, Result<Packet, shared::Error>),
 }
 
 struct Client {
     pub id: usize,
     pub options: Option<ClientOptions>,
-    writer: OwnedWriteHalf,
+    writer: FramedWrite<OwnedWriteHalf, codec::LengthDelimitedCodec>,
     handle: JoinHandle<Result<(), Error>>,
 
     #[allow(dead_code)]
@@ -46,11 +46,10 @@ impl Client {
     pub async fn listener(
         id: usize,
         tx: mpsc::Sender<Message>,
-        mut reader: OwnedReadHalf,
+        mut reader: FramedRead<OwnedReadHalf, LengthDelimitedCodec>,
     ) -> Result<(), Error> {
-        let mut framed = FramedRead::new(&mut reader, LengthDelimitedCodec::new());
         loop {
-            let packet = Packet::read(&mut framed).await;
+            let packet = Packet::read(&mut reader).await;
             let is_err = packet.is_err();
             tx.send(Message::Packet(id, packet)).await?;
 
@@ -72,7 +71,7 @@ impl Client {
         tx: mpsc::Sender<Message>,
         socket: TcpStream,
     ) -> Result<Self, Error> {
-        let (reader, writer) = socket.into_split();
+        let (reader, writer) = socket.framed_split();
         let handle = tokio::spawn(Self::listener(id, tx.clone(), reader));
 
         Ok(Self {
@@ -83,39 +82,49 @@ impl Client {
             writer,
         })
     }
-}
 
-impl Drop for Client {
-    fn drop(&mut self) {
+    pub async fn close(self) {
         self.handle.abort();
+        let _ = self.writer.into_inner().shutdown().await;
+        eprintln!("server (client {}): closed", self.id);
     }
 }
 
 struct Server {
     tx: mpsc::Sender<Message>,
     rx: mpsc::Receiver<Message>,
-    listener: JoinHandle<()>,
+    listener: JoinHandle<Result<(), Error>>,
     clients: Vec<Client>,
 }
 
+impl Drop for Server {
+    fn drop(&mut self) {
+        self.listener.abort();
+    }
+}
+
 impl Server {
-    pub async fn listen(listener: TcpListener, tx: mpsc::Sender<Message>) {
+    pub async fn listen(listener: TcpListener, tx: mpsc::Sender<Message>) -> Result<(), Error> {
+        eprintln!("server: listening on {}", listener.local_addr()?);
         while let Ok((stream, addr)) = listener.accept().await {
             tx.send(Message::Connection(stream, addr)).await.unwrap()
         }
+        Ok(())
     }
 
-    pub async fn client(&mut self, socket: TcpStream) -> Result<(), Error> {
+    pub async fn client(&mut self, socket: TcpStream, addr: SocketAddr) -> Result<(), Error> {
         let id = self.clients.last().and_then(|x| Some(x.id)).unwrap_or(0);
         let client = Client::new(id, self.tx.clone(), socket).await?;
         self.clients.push(client);
 
+        eprintln!("server: new client at {addr:?} with id {id}");
+
         Ok(())
     }
 
-    pub fn kick(&mut self, client: usize, error: packets::Error) {
-        eprintln!("server: client {client} removed: {error}");
-        self.clients.remove(client);
+    pub async fn kick(&mut self, client: usize, error: shared::Error) {
+        eprintln!("server (client {client}): removed: {error}");
+        self.clients.remove(client).close().await;
     }
 
     pub async fn new() -> Result<Self, Error> {
@@ -139,16 +148,18 @@ impl Server {
                         Packet::Init { options } => {
                             let client = &mut self.clients[id];
                             client.options = Some(options.clone());
+
+                            eprintln!("server (client {id}): {options:?}");
                             client.write(&Packet::Confirmed { id, options }).await?;
                         }
-                        Packet::Confirmed { id: _, options: _ } => {
-                            self.kick(id, packets::Error::Illegal)
+                        Packet::Confirmed { id, options: _ } => {
+                            self.kick(id, shared::Error::Illegal).await
                         }
                     },
-                    Err(error) => self.kick(id, error),
+                    Err(error) => self.kick(id, error).await,
                 },
-                Message::Connection(socket, _address) => {
-                    self.client(socket).await?;
+                Message::Connection(socket, address) => {
+                    self.client(socket, address).await?;
                 }
             }
         }
@@ -161,7 +172,6 @@ impl Server {
 pub async fn main() -> eyre::Result<()> {
     let mut server = Server::new().await?;
     server.run().await?;
-    server.listener.abort();
 
     Ok(())
 }

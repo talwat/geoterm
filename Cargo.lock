@@ -63,6 +63,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2fd1289c04a9ea8cb22300a459a72a385d7c73d3259e2ed7dcb2af674838cfa9"
 
 [[package]]
+name = "client"
+version = "0.1.0"
+dependencies = [
+ "eyre",
+ "futures",
+ "shared",
+ "thiserror",
+ "tokio",
+ "tokio-util",
+]
+
+[[package]]
 name = "eyre"
 version = "0.6.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -241,19 +253,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "42f5e15c9953c5e4ccceeb2e7382a716482c34515315f7b03532b8b4e8393d2d"
 
 [[package]]
-name = "packets"
-version = "0.1.0"
-dependencies = [
- "eyre",
- "futures",
- "rmp-serde",
- "serde",
- "thiserror",
- "tokio",
- "tokio-util",
-]
-
-[[package]]
 name = "paste"
 version = "1.0.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -353,7 +352,20 @@ version = "0.1.0"
 dependencies = [
  "eyre",
  "futures",
- "packets",
+ "shared",
+ "thiserror",
+ "tokio",
+ "tokio-util",
+]
+
+[[package]]
+name = "shared"
+version = "0.1.0"
+dependencies = [
+ "eyre",
+ "futures",
+ "rmp-serde",
+ "serde",
  "thiserror",
  "tokio",
  "tokio-util",
