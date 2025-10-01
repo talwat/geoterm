@@ -37,24 +37,30 @@ pub enum Error {
     Illegal,
 }
 
-impl Packet {
-    pub async fn read(
-        framed: &mut FramedRead<OwnedReadHalf, LengthDelimitedCodec>,
-    ) -> Result<Packet, Error> {
-        if let Some(bytes) = framed.try_next().await? {
+pub trait PacketReadExt {
+    fn read(&mut self) -> impl Future<Output = Result<Packet, Error>>;
+}
+
+pub trait PacketWriteExt {
+    fn write(&mut self, packet: &Packet) -> impl Future<Output = Result<(), Error>>;
+}
+
+impl PacketReadExt for FramedRead<OwnedReadHalf, LengthDelimitedCodec> {
+    async fn read(&mut self) -> Result<Packet, Error> {
+        if let Some(bytes) = self.try_next().await? {
             let packet: Packet = rmp_serde::from_slice(&bytes)?;
             Ok(packet)
         } else {
             Err(Error::Close)
         }
     }
+}
 
-    pub async fn write(
-        writer: &mut FramedWrite<OwnedWriteHalf, LengthDelimitedCodec>,
-        packet: &Packet,
-    ) -> Result<(), Error> {
+impl PacketWriteExt for FramedWrite<OwnedWriteHalf, LengthDelimitedCodec> {
+    async fn write(&mut self, packet: &Packet) -> Result<(), Error> {
         let bytes = rmp_serde::to_vec(packet)?;
-        writer.send(bytes.into()).await?;
+        eprintln!("sending: {bytes:x?}");
+        self.send(bytes.into()).await?;
 
         Ok(())
     }

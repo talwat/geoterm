@@ -1,6 +1,7 @@
 use std::{net::SocketAddr, str::Utf8Error};
 
-use shared::{ClientOptions, FramedSplitExt, Packet};
+use futures::executor::block_on;
+use shared::{ClientOptions, FramedSplitExt, Packet, PacketReadExt, PacketWriteExt};
 use tokio::{
     io::{self, AsyncWriteExt},
     net::{
@@ -30,6 +31,7 @@ enum Error {
 pub enum Message {
     Connection(TcpStream, SocketAddr),
     Packet(usize, Result<Packet, shared::Error>),
+    Quit,
 }
 
 struct Client {
@@ -49,7 +51,7 @@ impl Client {
         mut reader: FramedRead<OwnedReadHalf, LengthDelimitedCodec>,
     ) -> Result<(), Error> {
         loop {
-            let packet = Packet::read(&mut reader).await;
+            let packet = reader.read().await;
             let is_err = packet.is_err();
             tx.send(Message::Packet(id, packet)).await?;
 
@@ -62,7 +64,7 @@ impl Client {
     }
 
     pub async fn write(&mut self, packet: &Packet) -> Result<(), Error> {
-        Packet::write(&mut self.writer, packet).await?;
+        self.writer.write(packet).await?;
         Ok(())
     }
 
@@ -161,6 +163,7 @@ impl Server {
                 Message::Connection(socket, address) => {
                     self.client(socket, address).await?;
                 }
+                Message::Quit => break,
             }
         }
 
@@ -171,7 +174,13 @@ impl Server {
 #[tokio::main]
 pub async fn main() -> eyre::Result<()> {
     let mut server = Server::new().await?;
+    let tx = server.tx.clone();
+    ctrlc::set_handler(move || block_on(tx.send(Message::Quit)).unwrap()).unwrap();
+
     server.run().await?;
+    for client in server.clients.drain(..) {
+        client.close().await;
+    }
 
     Ok(())
 }
