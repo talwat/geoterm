@@ -1,4 +1,4 @@
-use std::str::Utf8Error;
+use std::{num::ParseFloatError, str::Utf8Error};
 
 use tokio::{io, sync::mpsc::error::SendError};
 
@@ -18,6 +18,12 @@ pub enum Error {
     #[error("packet error")]
     Packet(#[from] shared::Error),
 
+    #[error("invalid lat/long request data")]
+    Float(#[from] ParseFloatError),
+
     #[error("network request failed")]
     Request(#[from] reqwest::Error),
+
+    #[error("game in session")]
+    InSession,
 }

@@ -1,17 +1,25 @@
-use crate::error::Error;
+use crate::{error::Error, images::huggingface::Data};
 
-// TODO: Add params...
-pub async fn image() -> Result<Vec<u8>, Error> {
-    const LATITUDE: f32 = 48.8584;
-    const LONGITUDE: f32 = 2.2945;
+pub mod huggingface;
 
-    let url = format!(
-        "https://maps.googleapis.com/maps/api/streetview?size=320x240&location={LATITUDE},{LONGITUDE}&key={}",
-        env!("GOOGLE_API_KEY")
-    );
+// fn google() -> String {
+//     const LATITUDE: f32 = 48.8584;
+//     const LONGITUDE: f32 = 2.2945;
 
-    let resp = reqwest::get(url).await?;
-    let bytes = resp.bytes().await?;
+//     let url = format!(
+//         "https://maps.googleapis.com/maps/api/streetview?size=320x240&location={LATITUDE},{LONGITUDE}&key={}",
+//         env!("GOOGLE_API_KEY")
+//     );
 
-    Ok(bytes.to_vec())
+//     url
+// }
+
+pub async fn images() -> Result<([Vec<u8>; 3], Data), Error> {
+    let random = rand::random_range(0..11054);
+    let data = huggingface::fetch(random).await?;
+    let bytes = reqwest::get(data.image.src.clone()).await?.bytes().await?;
+    let bytes = bytes.to_vec();
+
+    // TODO: Actually split the image into 3...
+    Ok(([bytes.clone(), bytes.clone(), bytes], data))
 }

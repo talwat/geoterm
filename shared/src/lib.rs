@@ -6,6 +6,19 @@ use tokio::net::{
 };
 use tokio_util::codec::{FramedRead, FramedWrite, LengthDelimitedCodec};
 
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct Round {
+    pub number: usize,
+    pub answer: (f32, f32),
+    pub players: Vec<Player>,
+}
+
+impl Round {
+    pub fn player_mut(&mut self, id: usize) -> &mut Player {
+        self.players.iter_mut().find(|x| x.id == id).unwrap()
+    }
+}
+
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 pub struct LobbyClient {
     pub id: usize,
@@ -24,6 +37,14 @@ pub enum LobbyAction {
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 pub struct ClientOptions {
     pub user: String,
+}
+
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone, Copy)]
+pub struct Player {
+    #[serde(skip)]
+    pub guess: Option<(f32, f32)>,
+    pub points: u64,
+    pub id: usize,
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
@@ -46,8 +67,16 @@ pub enum Packet {
     WaitingStatus {
         ready: bool,
     },
-    Image {
-        data: Vec<u8>,
+    Round {
+        number: usize,
+        players: Vec<Player>,
+        images: [Vec<u8>; 3],
+    },
+    Guess {
+        coordinates: (f32, f32),
+    },
+    Result {
+        round: Round,
     },
 }
 

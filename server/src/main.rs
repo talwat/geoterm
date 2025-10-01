@@ -1,38 +1,32 @@
 use std::net::SocketAddr;
 
 use futures::{executor::block_on, future::join_all};
-use shared::{LobbyClient, Packet};
+use shared::{LobbyClient, Packet, Player, Round};
 use tokio::{
     net::{TcpListener, TcpStream},
     sync::mpsc,
     task::JoinHandle,
 };
 
-use crate::{client::Client, error::Error, lobby::match_lobby};
+use crate::{client::Client, error::Error};
 
 pub mod client;
 pub mod error;
 pub mod images;
 pub mod lobby;
+pub mod round;
 
 pub enum Message {
     Connection(TcpStream, SocketAddr),
     Packet(usize, Result<Packet, shared::Error>),
+    GuessingComplete,
     Quit,
-}
-
-pub struct Guess {
-    coordinates: (f32, f32),
-    user: usize,
 }
 
 pub enum State {
     Lobby,
-    Round {
-        number: usize,
-        answer: (f32, f32),
-        guesses: Vec<Guess>,
-    },
+    Round(Round),
+    Results(Round),
 }
 
 pub struct Server {
@@ -40,8 +34,8 @@ pub struct Server {
     rx: mpsc::Receiver<Message>,
     listener: JoinHandle<Result<(), Error>>,
     clients: Vec<Client>,
-    counter: usize,
     state: State,
+    id_counter: usize,
 }
 
 impl Drop for Server {
@@ -60,8 +54,8 @@ impl Server {
     }
 
     pub async fn client(&mut self, socket: TcpStream, addr: SocketAddr) -> Result<(), Error> {
-        let id = self.counter;
-        self.counter += 1;
+        let id = self.id_counter;
+        self.id_counter += 1;
 
         let client = Client::new(id, self.tx.clone(), socket).await?;
         self.clients.push(client);
@@ -123,7 +117,7 @@ impl Server {
             tx,
             rx,
             clients: Vec::new(),
-            counter: 0,
+            id_counter: 0,
             listener,
             state: State::Lobby,
         })
@@ -135,13 +129,27 @@ impl Server {
                 break;
             }
 
-            match &self.state {
-                State::Lobby => match_lobby(self, message).await?,
-                State::Round {
-                    number,
-                    answer,
-                    guesses,
-                } => todo!(),
+            match &mut self.state {
+                State::Lobby => lobby::handler(self, message).await?,
+                State::Round(round) => match message {
+                    Message::GuessingComplete => {
+                        let round = round.clone();
+                        // TODO: Actually calculate something...
+                        self.broadcast(&Packet::Result { round }, None).await;
+                    }
+                    Message::Connection(_stream, _addr) => return Err(Error::InSession),
+                    Message::Packet(id, packet) => match packet? {
+                        Packet::Guess { coordinates } => {
+                            round.player_mut(id).guess = Some(coordinates);
+                            if round.players.iter().all(|x| x.guess.is_some()) {
+                                self.tx.send(Message::GuessingComplete).await?;
+                            }
+                        }
+                        _ => return Err(Error::Packet(shared::Error::Illegal)),
+                    },
+                    Message::Quit => return Ok(()),
+                },
+                State::Results { .. } => todo!(),
             }
         }
 

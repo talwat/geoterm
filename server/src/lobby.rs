@@ -1,8 +1,8 @@
 use shared::Packet;
 
-use crate::{Message, Server, error::Error};
+use crate::{Message, Server, error::Error, round};
 
-pub async fn match_lobby(server: &mut Server, message: Message) -> Result<(), Error> {
+pub async fn handler(server: &mut Server, message: Message) -> Result<(), Error> {
     match message {
         Message::Packet(id, packet) => match packet {
             Ok(packet) => match packet {
@@ -21,6 +21,10 @@ pub async fn match_lobby(server: &mut Server, message: Message) -> Result<(), Er
                 Packet::WaitingStatus { ready } => {
                     server.clients[id].ready = ready;
                     server.broadcast_lobby(id).await;
+
+                    if server.clients.iter().all(|x| x.ready) {
+                        server.state = round::new(server).await?;
+                    }
                 }
                 _ => server.kick(id, shared::Error::Illegal).await,
             },
@@ -29,7 +33,7 @@ pub async fn match_lobby(server: &mut Server, message: Message) -> Result<(), Er
         Message::Connection(socket, address) => {
             server.client(socket, address).await?;
         }
-        Message::Quit => return Ok(()),
+        Message::Quit | Message::GuessingComplete => return Ok(()),
     }
 
     Ok(())
