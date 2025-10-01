@@ -17,5 +17,14 @@ async fn main() -> eyre::Result<()> {
     let read = reader.read().await?;
     dbg!(read);
 
+    loop {
+        eprintln!("waiting...");
+        let Ok(read) = reader.read().await else {
+            break;
+        };
+
+        dbg!(read);
+    }
+
     Ok(())
 }

@@ -1,32 +1,19 @@
-use std::{net::SocketAddr, str::Utf8Error};
+use std::net::SocketAddr;
 
-use futures::executor::block_on;
-use shared::{ClientOptions, FramedSplitExt, Packet, PacketReadExt, PacketWriteExt};
+use futures::{executor::block_on, future::join_all};
+use shared::{LobbyClient, Packet};
 use tokio::{
-    io::{self, AsyncWriteExt},
-    net::{
-        TcpListener, TcpStream,
-        tcp::{OwnedReadHalf, OwnedWriteHalf},
-    },
-    sync::mpsc::{self, error::SendError},
+    net::{TcpListener, TcpStream},
+    sync::mpsc,
     task::JoinHandle,
 };
-use tokio_util::codec::{self, FramedRead, FramedWrite, LengthDelimitedCodec};
 
-#[derive(Debug, thiserror::Error)]
-enum Error {
-    #[error("utf8 encoding/decoding failed")]
-    Utf8(#[from] Utf8Error),
+use crate::{client::Client, error::Error, lobby::match_lobby};
 
-    #[error("sending internal message failed")]
-    Send(#[from] SendError<Message>),
-
-    #[error("io failure")]
-    Io(#[from] io::Error),
-
-    #[error("packet error")]
-    Packet(#[from] shared::Error),
-}
+pub mod client;
+pub mod error;
+pub mod images;
+pub mod lobby;
 
 pub enum Message {
     Connection(TcpStream, SocketAddr),
@@ -34,69 +21,27 @@ pub enum Message {
     Quit,
 }
 
-struct Client {
-    pub id: usize,
-    pub options: Option<ClientOptions>,
-    writer: FramedWrite<OwnedWriteHalf, codec::LengthDelimitedCodec>,
-    handle: JoinHandle<Result<(), Error>>,
-
-    #[allow(dead_code)]
-    tx: mpsc::Sender<Message>,
+pub struct Guess {
+    coordinates: (f32, f32),
+    user: usize,
 }
 
-impl Client {
-    pub async fn listener(
-        id: usize,
-        tx: mpsc::Sender<Message>,
-        mut reader: FramedRead<OwnedReadHalf, LengthDelimitedCodec>,
-    ) -> Result<(), Error> {
-        loop {
-            let packet = reader.read().await;
-            let is_err = packet.is_err();
-            tx.send(Message::Packet(id, packet)).await?;
-
-            if is_err {
-                break;
-            };
-        }
-
-        Ok(())
-    }
-
-    pub async fn write(&mut self, packet: &Packet) -> Result<(), Error> {
-        self.writer.write(packet).await?;
-        Ok(())
-    }
-
-    pub async fn new(
-        id: usize,
-        tx: mpsc::Sender<Message>,
-        socket: TcpStream,
-    ) -> Result<Self, Error> {
-        let (reader, writer) = socket.framed_split();
-        let handle = tokio::spawn(Self::listener(id, tx.clone(), reader));
-
-        Ok(Self {
-            handle,
-            id,
-            tx,
-            options: None,
-            writer,
-        })
-    }
-
-    pub async fn close(self) {
-        self.handle.abort();
-        let _ = self.writer.into_inner().shutdown().await;
-        eprintln!("server (client {}): closed", self.id);
-    }
+pub enum State {
+    Lobby,
+    Round {
+        number: usize,
+        answer: (f32, f32),
+        guesses: Vec<Guess>,
+    },
 }
 
-struct Server {
+pub struct Server {
     tx: mpsc::Sender<Message>,
     rx: mpsc::Receiver<Message>,
     listener: JoinHandle<Result<(), Error>>,
     clients: Vec<Client>,
+    counter: usize,
+    state: State,
 }
 
 impl Drop for Server {
@@ -115,7 +60,9 @@ impl Server {
     }
 
     pub async fn client(&mut self, socket: TcpStream, addr: SocketAddr) -> Result<(), Error> {
-        let id = self.clients.last().and_then(|x| Some(x.id)).unwrap_or(0);
+        let id = self.counter;
+        self.counter += 1;
+
         let client = Client::new(id, self.tx.clone(), socket).await?;
         self.clients.push(client);
 
@@ -126,7 +73,45 @@ impl Server {
 
     pub async fn kick(&mut self, client: usize, error: shared::Error) {
         eprintln!("server (client {client}): removed: {error}");
-        self.clients.remove(client).close().await;
+        if let Some(index) = self.clients.iter().position(|x| x.id == client) {
+            self.clients.remove(index);
+        };
+    }
+
+    pub async fn broadcast(&mut self, packet: &Packet, exclude: Option<usize>) {
+        let futures = self
+            .clients
+            .iter_mut()
+            .filter(|client| client.options.is_some() && !exclude.is_some_and(|x| client.id == x))
+            .map(|client| client.write(packet));
+
+        join_all(futures).await;
+    }
+
+    pub async fn lobby(&mut self) -> Vec<LobbyClient> {
+        self.clients
+            .iter()
+            .filter_map(|x| {
+                Some(LobbyClient {
+                    id: x.id,
+                    ready: x.ready,
+                    user: x.options.as_ref()?.user.clone(),
+                })
+            })
+            .collect()
+    }
+
+    pub async fn broadcast_lobby(&mut self, id: usize) {
+        let lobby = self.lobby().await;
+        self.broadcast(
+            &Packet::Lobby {
+                action: shared::LobbyAction::Join,
+                user: id,
+                lobby,
+            },
+            Some(id),
+        )
+        .await;
     }
 
     pub async fn new() -> Result<Self, Error> {
@@ -138,32 +123,25 @@ impl Server {
             tx,
             rx,
             clients: Vec::new(),
+            counter: 0,
             listener,
+            state: State::Lobby,
         })
     }
 
     pub async fn run(&mut self) -> Result<(), Error> {
-        while let Some(action) = self.rx.recv().await {
-            match action {
-                Message::Packet(id, packet) => match packet {
-                    Ok(packet) => match packet {
-                        Packet::Init { options } => {
-                            let client = &mut self.clients[id];
-                            client.options = Some(options.clone());
+        while let Some(message) = self.rx.recv().await {
+            if matches!(message, Message::Quit) {
+                break;
+            }
 
-                            eprintln!("server (client {id}): {options:?}");
-                            client.write(&Packet::Confirmed { id, options }).await?;
-                        }
-                        Packet::Confirmed { id, options: _ } => {
-                            self.kick(id, shared::Error::Illegal).await
-                        }
-                    },
-                    Err(error) => self.kick(id, error).await,
-                },
-                Message::Connection(socket, address) => {
-                    self.client(socket, address).await?;
-                }
-                Message::Quit => break,
+            match &self.state {
+                State::Lobby => match_lobby(self, message).await?,
+                State::Round {
+                    number,
+                    answer,
+                    guesses,
+                } => todo!(),
             }
         }
 

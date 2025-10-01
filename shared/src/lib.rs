@@ -7,6 +7,21 @@ use tokio::net::{
 use tokio_util::codec::{FramedRead, FramedWrite, LengthDelimitedCodec};
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
+pub struct LobbyClient {
+    pub id: usize,
+    pub ready: bool,
+    pub user: String,
+}
+
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
+#[repr(u8)]
+pub enum LobbyAction {
+    Join = 0,
+    Leave = 1,
+    Ready = 2,
+}
+
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 pub struct ClientOptions {
     pub user: String,
 }
@@ -15,8 +30,25 @@ pub struct ClientOptions {
 #[repr(u8)]
 #[serde(tag = "tag")]
 pub enum Packet {
-    Init { options: ClientOptions },
-    Confirmed { id: usize, options: ClientOptions },
+    Init {
+        options: ClientOptions,
+    },
+    Confirmed {
+        id: usize,
+        options: ClientOptions,
+        lobby: Vec<LobbyClient>,
+    },
+    Lobby {
+        action: LobbyAction,
+        user: usize,
+        lobby: Vec<LobbyClient>,
+    },
+    WaitingStatus {
+        ready: bool,
+    },
+    Image {
+        data: Vec<u8>,
+    },
 }
 
 #[derive(Debug, thiserror::Error)]
