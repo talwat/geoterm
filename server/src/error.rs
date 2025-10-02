@@ -24,6 +24,9 @@ pub enum Error {
     #[error("network request failed")]
     Request(#[from] reqwest::Error),
 
+    #[error("image editing failed")]
+    Image(#[from] image::ImageError),
+
     #[error("game in session")]
     InSession,
 }

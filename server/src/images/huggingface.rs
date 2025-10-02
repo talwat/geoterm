@@ -14,6 +14,7 @@ pub struct Data {
     pub image: Image,
     pub coordinates: (f32, f32),
     pub country: [char; 2],
+    pub address: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -21,6 +22,7 @@ struct RowContent {
     image: Image,
     longitude: String,
     latitude: String,
+    address: String,
     #[serde(rename = "country_iso_alpha2")]
     country: String,
 }
@@ -45,6 +47,7 @@ impl Response {
             image: content.image,
             coordinates: (content.longitude.parse()?, content.latitude.parse()?),
             country: [chars.next().unwrap(), chars.next().unwrap()],
+            address: content.address,
         })
     }
 }

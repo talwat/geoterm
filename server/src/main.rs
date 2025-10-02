@@ -1,7 +1,7 @@
 use std::net::SocketAddr;
 
 use futures::{executor::block_on, future::join_all};
-use shared::{LobbyClient, Packet, Player, Round};
+use shared::{LobbyAction, LobbyClient, Packet, Player, Round};
 use tokio::{
     net::{TcpListener, TcpStream},
     sync::mpsc,
@@ -66,7 +66,7 @@ impl Server {
     }
 
     pub async fn kick(&mut self, client: usize, error: shared::Error) {
-        eprintln!("server (client {client}): removed: {error}");
+        eprintln!("server(client {client}): removed: {error}");
         if let Some(index) = self.clients.iter().position(|x| x.id == client) {
             self.clients.remove(index);
         };
@@ -95,11 +95,11 @@ impl Server {
             .collect()
     }
 
-    pub async fn broadcast_lobby(&mut self, id: usize) {
+    pub async fn broadcast_lobby(&mut self, id: usize, action: LobbyAction) {
         let lobby = self.lobby().await;
         self.broadcast(
             &Packet::Lobby {
-                action: shared::LobbyAction::Join,
+                action,
                 user: id,
                 lobby,
             },
@@ -138,14 +138,17 @@ impl Server {
                         self.broadcast(&Packet::Result { round }, None).await;
                     }
                     Message::Connection(_stream, _addr) => return Err(Error::InSession),
-                    Message::Packet(id, packet) => match packet? {
-                        Packet::Guess { coordinates } => {
+                    Message::Packet(id, packet) => match packet {
+                        Ok(Packet::Guess { coordinates }) => {
                             round.player_mut(id).guess = Some(coordinates);
                             if round.players.iter().all(|x| x.guess.is_some()) {
                                 self.tx.send(Message::GuessingComplete).await?;
                             }
                         }
-                        _ => return Err(Error::Packet(shared::Error::Illegal)),
+
+                        // TODO: Is it really the best idea to just kick anyone who sends an illegal package?
+                        Ok(other) => self.kick(id, shared::Error::Illegal(other)).await,
+                        Err(error) => self.kick(id, error).await,
                     },
                     Message::Quit => return Ok(()),
                 },

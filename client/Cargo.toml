@@ -8,5 +8,6 @@ shared = { path = "../shared" }
 eyre = "0.6.12"
 futures = "0.3.31"
 thiserror = "2.0.16"
-tokio = { version = "1.47.1", features = ["macros", "net", "rt-multi-thread", "io-util", "sync"] }
-tokio-util = { version = "0.7.16", features = ["codec"] }
+tokio = { version = "1.47.1", default-features = false, features = ["macros", "net", "rt-multi-thread", "io-util", "sync", "fs"] }
+tokio-util = { version = "0.7.16", default-features = false, features = ["codec"] }
+image = "0.25.8"

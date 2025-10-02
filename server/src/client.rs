@@ -1,14 +1,7 @@
-use shared::{ClientOptions, FramedSplitExt, Packet, PacketReadExt, PacketWriteExt};
-use tokio::{
-    io::AsyncWriteExt,
-    net::{
-        TcpStream,
-        tcp::{OwnedReadHalf, OwnedWriteHalf},
-    },
-    sync::mpsc,
-    task::JoinHandle,
+use shared::{
+    ClientOptions, FramedSplitExt, Packet, PacketReadExt, PacketWriteExt, Reader, Writer,
 };
-use tokio_util::codec::{self, FramedRead, FramedWrite, LengthDelimitedCodec};
+use tokio::{io::AsyncWriteExt, net::TcpStream, sync::mpsc, task::JoinHandle};
 
 use crate::{Error, Message};
 
@@ -16,7 +9,7 @@ pub struct Client {
     pub id: usize,
     pub ready: bool,
     pub options: Option<ClientOptions>,
-    writer: FramedWrite<OwnedWriteHalf, codec::LengthDelimitedCodec>,
+    writer: Writer,
     handle: JoinHandle<Result<(), Error>>,
 
     #[allow(dead_code)]
@@ -27,7 +20,7 @@ impl Client {
     async fn listener(
         id: usize,
         tx: mpsc::Sender<Message>,
-        mut reader: FramedRead<OwnedReadHalf, LengthDelimitedCodec>,
+        mut reader: Reader,
     ) -> Result<(), Error> {
         loop {
             let packet = reader.read().await;

@@ -6,6 +6,9 @@ use tokio::net::{
 };
 use tokio_util::codec::{FramedRead, FramedWrite, LengthDelimitedCodec};
 
+pub type Writer = FramedWrite<OwnedWriteHalf, LengthDelimitedCodec>;
+pub type Reader = FramedRead<OwnedReadHalf, LengthDelimitedCodec>;
+
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct Round {
     pub number: usize,
@@ -48,6 +51,12 @@ pub struct Player {
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
+pub struct Text {
+    pub street: String,
+    pub additional: Vec<((usize, usize), String)>,
+}
+
+#[derive(Debug, Deserialize, Serialize, PartialEq)]
 #[repr(u8)]
 #[serde(tag = "tag")]
 pub enum Packet {
@@ -67,9 +76,11 @@ pub enum Packet {
     WaitingStatus {
         ready: bool,
     },
+    RoundLoading,
     Round {
         number: usize,
         players: Vec<Player>,
+        text: Text,
         images: [Vec<u8>; 3],
     },
     Guess {
@@ -94,8 +105,8 @@ pub enum Error {
     #[error("packet encoding failed")]
     Encode(#[from] rmp_serde::encode::Error),
 
-    #[error("unexpected packet")]
-    Illegal,
+    #[error("unexpected packet: {0:?}")]
+    Illegal(Packet),
 }
 
 pub trait PacketReadExt {
@@ -106,7 +117,7 @@ pub trait PacketWriteExt {
     fn write(&mut self, packet: &Packet) -> impl Future<Output = Result<(), Error>>;
 }
 
-impl PacketReadExt for FramedRead<OwnedReadHalf, LengthDelimitedCodec> {
+impl PacketReadExt for Reader {
     async fn read(&mut self) -> Result<Packet, Error> {
         if let Some(bytes) = self.try_next().await? {
             let packet: Packet = rmp_serde::from_slice(&bytes)?;
@@ -117,10 +128,9 @@ impl PacketReadExt for FramedRead<OwnedReadHalf, LengthDelimitedCodec> {
     }
 }
 
-impl PacketWriteExt for FramedWrite<OwnedWriteHalf, LengthDelimitedCodec> {
+impl PacketWriteExt for Writer {
     async fn write(&mut self, packet: &Packet) -> Result<(), Error> {
         let bytes = rmp_serde::to_vec(packet)?;
-        eprintln!("sending: {bytes:x?}");
         self.send(bytes.into()).await?;
 
         Ok(())
@@ -128,21 +138,11 @@ impl PacketWriteExt for FramedWrite<OwnedWriteHalf, LengthDelimitedCodec> {
 }
 
 pub trait FramedSplitExt {
-    fn framed_split(
-        self,
-    ) -> (
-        FramedRead<OwnedReadHalf, LengthDelimitedCodec>,
-        FramedWrite<OwnedWriteHalf, LengthDelimitedCodec>,
-    );
+    fn framed_split(self) -> (Reader, Writer);
 }
 
 impl FramedSplitExt for TcpStream {
-    fn framed_split(
-        self,
-    ) -> (
-        FramedRead<OwnedReadHalf, LengthDelimitedCodec>,
-        FramedWrite<OwnedWriteHalf, LengthDelimitedCodec>,
-    ) {
+    fn framed_split(self) -> (Reader, Writer) {
         let (reader, writer) = self.into_split();
         let codec = LengthDelimitedCodec::new();
 
