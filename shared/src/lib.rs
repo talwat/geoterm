@@ -1,3 +1,5 @@
+use std::ops::IndexMut;
+
 use futures::{SinkExt, TryStreamExt};
 use serde::{Deserialize, Serialize};
 use tokio::net::{
@@ -16,9 +18,25 @@ pub struct Round {
     pub players: Vec<Player>,
 }
 
-impl Round {
-    pub fn player_mut(&mut self, id: usize) -> &mut Player {
-        self.players.iter_mut().find(|x| x.id == id).unwrap()
+use std::ops::Index;
+
+impl Index<usize> for Round {
+    type Output = Player;
+
+    fn index(&self, index: usize) -> &Self::Output {
+        self.players
+            .iter()
+            .find(|x| x.id == index)
+            .expect("player not found")
+    }
+}
+
+impl IndexMut<usize> for Round {
+    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+        self.players
+            .iter_mut()
+            .find(|x| x.id == index)
+            .expect("player not found")
     }
 }
 

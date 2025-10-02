@@ -1,6 +1,8 @@
 use shared::{Round, Text};
 
-use crate::{Player, Server, State, error::Error, images::images};
+use crate::server::State;
+use crate::{Server, error::Error, images::images};
+use shared::Player;
 
 pub async fn new(server: &mut Server) -> Result<State, Error> {
     server.broadcast(&shared::Packet::RoundLoading, None).await;

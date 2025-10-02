@@ -1,5 +1,7 @@
 use std::io::{BufReader, Cursor};
 
+use crossterm::event::{EventStream, KeyEvent};
+use futures::StreamExt;
 use image::ImageReader;
 use image::imageops::FilterType;
 use shared::{ClientOptions, FramedSplitExt, Packet, PacketReadExt, PacketWriteExt};
@@ -17,13 +19,14 @@ pub mod renderer;
 
 enum Message {
     Packet(Packet),
-    Input(String),
+    Input(KeyEvent),
 }
 
 struct Client {
-    id: usize,
+    _id: usize,
     writer: FramedWrite<OwnedWriteHalf, LengthDelimitedCodec>,
     rx: Receiver<Message>,
+    tx: Sender<Message>,
     handle: JoinHandle<eyre::Result<()>>,
 }
 
@@ -35,6 +38,7 @@ impl Client {
         while let Ok(packet) = reader.read().await {
             tx.send(Message::Packet(packet)).await?;
         }
+
         Ok(())
     }
 
@@ -56,11 +60,51 @@ impl Client {
         );
 
         Ok(Self {
-            id,
+            _id: id,
             writer,
             rx,
-            handle: tokio::spawn(Self::listener(reader, tx)),
+            handle: tokio::spawn(Self::listener(reader, tx.clone())),
+            tx,
         })
+    }
+}
+
+impl Drop for Client {
+    fn drop(&mut self) {
+        self.handle.abort();
+    }
+}
+
+struct UI {
+    input: JoinHandle<eyre::Result<()>>,
+}
+
+impl UI {
+    async fn input(tx: Sender<Message>) -> eyre::Result<()> {
+        let mut stream = EventStream::new();
+
+        while let Some(Ok(event)) = stream.next().await {
+            match event {
+                crossterm::event::Event::Key(key) => tx.send(Message::Input(key)).await?,
+                _ => break,
+            }
+        }
+
+        Ok(())
+    }
+
+    pub fn new(tx: Sender<Message>) -> eyre::Result<Self> {
+        crossterm::terminal::enable_raw_mode()?;
+        Ok(UI {
+            input: tokio::spawn(Self::input(tx)),
+        })
+    }
+}
+
+impl Drop for UI {
+    fn drop(&mut self) {
+        self.input.abort();
+        crossterm::terminal::disable_raw_mode().unwrap();
     }
 }
 
@@ -71,19 +115,35 @@ async fn main() -> eyre::Result<()> {
     };
 
     let mut client = Client::new(options).await?;
-
-    client
-        .writer
-        .write(&Packet::WaitingStatus { ready: true })
-        .await?;
+    let _ui = UI::new(client.tx.clone())?;
 
     while let Some(message) = client.rx.recv().await {
         match message {
             Message::Packet(packet) => match packet {
                 Packet::RoundLoading => break,
+                Packet::Lobby {
+                    action,
+                    user,
+                    lobby,
+                } => {
+                    dbg!(lobby);
+                    dbg!(action);
+                    dbg!(user);
+                }
                 _ => continue,
             },
-            Message::Input(_input) => todo!(),
+            Message::Input(input) => match input.code {
+                crossterm::event::KeyCode::Char(char) => match char {
+                    'r' => {
+                        client
+                            .writer
+                            .write(&Packet::WaitingStatus { ready: true })
+                            .await?
+                    }
+                    _ => continue,
+                },
+                _ => continue,
+            },
         }
     }
 

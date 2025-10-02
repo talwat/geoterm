@@ -6,11 +6,11 @@ pub async fn handler(server: &mut Server, message: Message) -> Result<(), Error>
     match message {
         Message::Packet(id, packet) => match packet {
             Ok(Packet::Init { options }) => {
-                server.clients[id].options = Some(options.clone());
+                server[id].options = Some(options.clone());
                 eprintln!("server(client {id}): {options:?}");
 
                 let lobby = server.lobby().await;
-                let client = &mut server.clients[id];
+                let client = &mut server[id];
                 client
                     .write(&Packet::Confirmed { id, options, lobby })
                     .await?;
@@ -18,7 +18,7 @@ pub async fn handler(server: &mut Server, message: Message) -> Result<(), Error>
                 server.broadcast_lobby(id, LobbyAction::Join).await;
             }
             Ok(Packet::WaitingStatus { ready }) => {
-                server.clients[id].ready = ready;
+                server[id].ready = ready;
                 eprintln!("server(client {id}): ready = {ready}");
                 server.broadcast_lobby(id, LobbyAction::Ready).await;
 
