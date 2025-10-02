@@ -6,13 +6,15 @@ use std::{
 use futures::future::join_all;
 use shared::{LobbyAction, LobbyClient, Packet, Round};
 use tokio::{
+    io::AsyncWriteExt,
     net::{TcpListener, TcpStream},
     sync::mpsc,
     task::JoinHandle,
 };
 
-use crate::{Message, client::Client, error::Error, lobby};
+use crate::{Message, client::Client, error::Error, lobby, round};
 
+#[derive(Debug, PartialEq)]
 pub enum State {
     Lobby,
     Round(Round),
@@ -92,6 +94,11 @@ impl Server {
         join_all(futures).await;
     }
 
+    pub fn ready(&self) -> bool {
+        let ready = self.clients.iter().filter(|x| x.ready).count();
+        ready >= 2 && ready == self.clients.len()
+    }
+
     pub async fn lobby(&mut self) -> Vec<LobbyClient> {
         self.clients
             .iter()
@@ -143,26 +150,51 @@ impl Server {
                 State::Lobby => lobby::handler(self, message).await?,
                 State::Round(round) => match message {
                     Message::GuessingComplete => {
-                        let round = round.clone();
-                        // TODO: Actually calculate something...
+                        let mut round = round.clone();
+                        round::results(&mut round);
+
+                        self.state = State::Results(round.clone());
                         self.broadcast(&Packet::Result { round }, None).await;
+                        eprintln!("server: round finished, showing results");
                     }
-                    Message::Connection(_stream, _addr) => return Err(Error::InSession),
+                    Message::Connection(mut stream, _addr) => stream.shutdown().await?,
                     Message::Packet(id, packet) => match packet {
                         Ok(Packet::Guess { coordinates }) => {
+                            eprintln!("server(client {id}): guessed");
                             round[id].guess = Some(coordinates);
                             if round.players.iter().all(|x| x.guess.is_some()) {
                                 self.tx.send(Message::GuessingComplete).await?;
                             }
                         }
-
-                        // TODO: Is it really the best idea to just kick anyone who sends an illegal package?
                         Ok(other) => self.kick(id, shared::Error::Illegal(other)).await,
                         Err(error) => self.kick(id, error).await,
                     },
                     Message::Quit => return Ok(()),
                 },
-                State::Results { .. } => todo!(),
+                State::Results(round) => match message {
+                    Message::Packet(id, packet) => match packet {
+                        Ok(Packet::WaitingStatus { ready }) => {
+                            if !ready {
+                                eprintln!("server(client {id}): returning to lobby...");
+                                self.state = State::Lobby;
+                                continue;
+                            }
+
+                            eprintln!("server(client {id}): ready");
+                            let round = round.clone();
+
+                            self[id].ready = ready;
+                            if self.ready() {
+                                eprintln!("server: all ready, starting new round");
+                                self.state = round::new(self, Some(&round)).await?;
+                            }
+                        }
+                        Ok(other) => self.kick(id, shared::Error::Illegal(other)).await,
+                        Err(error) => self.kick(id, error).await,
+                    },
+                    Message::Connection(mut stream, _addr) => stream.shutdown().await?,
+                    Message::Quit | Message::GuessingComplete => return Ok(()),
+                },
             }
         }
 

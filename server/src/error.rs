@@ -26,7 +26,4 @@ pub enum Error {
 
     #[error("image editing failed")]
     Image(#[from] image::ImageError),
-
-    #[error("game in session")]
-    InSession,
 }

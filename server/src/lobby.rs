@@ -22,9 +22,9 @@ pub async fn handler(server: &mut Server, message: Message) -> Result<(), Error>
                 eprintln!("server(client {id}): ready = {ready}");
                 server.broadcast_lobby(id, LobbyAction::Ready).await;
 
-                let ready = server.clients.iter().filter(|x| x.ready).count();
-                if ready >= 2 && ready == server.clients.len() {
-                    server.state = round::new(server).await?;
+                if server.ready() {
+                    server.state = round::new(server, None).await?;
+                    server.clients.iter_mut().for_each(|x| x.ready = false);
                 }
             }
             Ok(other) => server.kick(id, shared::Error::Illegal(other)).await,

@@ -55,7 +55,7 @@ impl Client {
         };
 
         eprintln!(
-            "client: confirmed with id {id}, {} players in lobby.",
+            "client: confirmed with id {id}, {} players in lobby",
             lobby.len()
         );
 
@@ -94,7 +94,6 @@ impl UI {
     }
 
     pub fn new(tx: Sender<Message>) -> eyre::Result<Self> {
-        crossterm::terminal::enable_raw_mode()?;
         Ok(UI {
             input: tokio::spawn(Self::input(tx)),
         })
@@ -104,7 +103,6 @@ impl UI {
 impl Drop for UI {
     fn drop(&mut self) {
         self.input.abort();
-        crossterm::terminal::disable_raw_mode().unwrap();
     }
 }
 
@@ -117,57 +115,102 @@ async fn main() -> eyre::Result<()> {
     let mut client = Client::new(options).await?;
     let _ui = UI::new(client.tx.clone())?;
 
-    while let Some(message) = client.rx.recv().await {
-        match message {
-            Message::Packet(packet) => match packet {
-                Packet::RoundLoading => break,
-                Packet::Lobby {
-                    action,
-                    user,
-                    lobby,
-                } => {
-                    dbg!(lobby);
-                    dbg!(action);
-                    dbg!(user);
-                }
-                _ => continue,
-            },
-            Message::Input(input) => match input.code {
-                crossterm::event::KeyCode::Char(char) => match char {
-                    'r' => {
-                        client
-                            .writer
-                            .write(&Packet::WaitingStatus { ready: true })
-                            .await?
+    'm: loop {
+        while let Some(message) = client.rx.recv().await {
+            match message {
+                Message::Packet(packet) => match packet {
+                    Packet::RoundLoading => break,
+                    Packet::Lobby {
+                        action,
+                        user,
+                        lobby,
+                    } => {
+                        eprintln!(
+                            "client: client {user} did {action:?}. {} clients in lobby",
+                            lobby.len()
+                        )
                     }
                     _ => continue,
                 },
-                _ => continue,
-            },
+                Message::Input(input) => match input.code {
+                    crossterm::event::KeyCode::Char(char) => match char {
+                        'r' => {
+                            client
+                                .writer
+                                .write(&Packet::WaitingStatus { ready: true })
+                                .await?;
+
+                            eprintln!("client: ready");
+                        }
+                        'q' => break 'm,
+                        _ => continue,
+                    },
+                    _ => continue,
+                },
+            }
+        }
+
+        eprintln!("server loading...");
+        let (_number, _players, images, text) = loop {
+            match client.rx.recv().await.ok_or(shared::Error::Close)? {
+                Message::Packet(Packet::Round {
+                    number,
+                    players,
+                    images,
+                    text,
+                }) => break (number, players, images, text),
+                Message::Packet(other) => return Err(shared::Error::Illegal(other).into()),
+                Message::Input(_) => continue,
+            }
+        };
+
+        let image = ImageReader::new(BufReader::new(Cursor::new(&images[1])))
+            .with_guessed_format()?
+            .decode()?;
+        let resized = image.resize(120, 90, FilterType::Lanczos3);
+
+        let image = renderer::render(&resized);
+        eprintln!("{image}\nstreet: {}", text.street);
+
+        while let Some(message) = client.rx.recv().await {
+            match message {
+                Message::Packet(packet) => match packet {
+                    Packet::Result { round } => {
+                        eprintln!("client: results:");
+                        for player in round.players {
+                            eprintln!("player {}: {}", player.id, player.points)
+                        }
+                    }
+                    Packet::RoundLoading => break,
+                    other => return Err(shared::Error::Illegal(other).into()),
+                },
+                Message::Input(input) => match input.code {
+                    crossterm::event::KeyCode::Char(char) => match char {
+                        'r' => {
+                            client
+                                .writer
+                                .write(&Packet::WaitingStatus { ready: true })
+                                .await?;
+                            break;
+                        }
+                        'g' => {
+                            client
+                                .writer
+                                .write(&Packet::Guess {
+                                    coordinates: (0.0, 51.0),
+                                })
+                                .await?;
+
+                            eprintln!("client: guess submitted");
+                        }
+                        'q' => break 'm,
+                        _ => continue,
+                    },
+                    _ => continue,
+                },
+            }
         }
     }
-
-    eprintln!("server loading...");
-    let (_number, _players, images, text) = loop {
-        match client.rx.recv().await.ok_or(shared::Error::Close)? {
-            Message::Packet(Packet::Round {
-                number,
-                players,
-                images,
-                text,
-            }) => break (number, players, images, text),
-            Message::Packet(other) => return Err(shared::Error::Illegal(other).into()),
-            Message::Input(_) => continue,
-        }
-    };
-
-    let image = ImageReader::new(BufReader::new(Cursor::new(&images[1])))
-        .with_guessed_format()?
-        .decode()?;
-    let resized = image.resize(120, 90, FilterType::Lanczos3);
-
-    let image = renderer::render(&resized);
-    eprintln!("{image}\nstreet: {}", text.street);
 
     Ok(())
 }

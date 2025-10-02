@@ -51,8 +51,8 @@ pub struct LobbyClient {
 #[repr(u8)]
 pub enum LobbyAction {
     Join = 0,
-    Leave = 1,
-    Ready = 2,
+    Leave,
+    Ready,
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
