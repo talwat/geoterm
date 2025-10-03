@@ -1,10 +1,4 @@
-use std::io::{BufReader, Cursor};
-
-use crossterm::event::{EventStream, KeyEvent};
-use futures::StreamExt;
-use image::ImageReader;
-use image::imageops::FilterType;
-use shared::{ClientOptions, FramedSplitExt, Packet, PacketReadExt, PacketWriteExt};
+use shared::{ClientOptions, FramedSplitExt, LobbyClient, Packet, PacketReadExt, PacketWriteExt};
 use tokio::{
     net::{
         TcpStream,
@@ -15,15 +9,20 @@ use tokio::{
 };
 use tokio_util::codec::{FramedRead, FramedWrite, LengthDelimitedCodec};
 
-pub mod renderer;
+use crate::ui::{State, UI, lobby::Lobby};
 
-enum Message {
+pub mod ui;
+
+#[derive(Debug)]
+pub enum Message {
+    Quit,
+    Ready,
     Packet(Packet),
-    Input(KeyEvent),
 }
 
 struct Client {
-    _id: usize,
+    ready: bool,
+    id: usize,
     writer: FramedWrite<OwnedWriteHalf, LengthDelimitedCodec>,
     rx: Receiver<Message>,
     tx: Sender<Message>,
@@ -42,30 +41,28 @@ impl Client {
         Ok(())
     }
 
-    pub async fn new(options: ClientOptions) -> eyre::Result<Self> {
+    pub async fn new(options: ClientOptions) -> eyre::Result<(Self, Vec<LobbyClient>)> {
         let (tx, rx) = mpsc::channel(8);
         let stream = TcpStream::connect("127.0.0.1:3000").await?;
         let (mut reader, mut writer) = stream.framed_split();
 
         writer.write(&Packet::Init { options }).await?;
 
-        let (id, _options, lobby) = match reader.read().await? {
+        let (id, .., lobby) = match reader.read().await? {
             Packet::Confirmed { id, options, lobby } => (id, options, lobby),
             other => return Err(shared::Error::Illegal(other).into()),
         };
 
-        eprintln!(
-            "client: confirmed with id {id}, {} players in lobby",
-            lobby.len()
-        );
-
-        Ok(Self {
-            _id: id,
+        let client = Self {
+            ready: false,
+            id,
             writer,
             rx,
             handle: tokio::spawn(Self::listener(reader, tx.clone())),
             tx,
-        })
+        };
+
+        Ok((client, lobby))
     }
 }
 
@@ -75,140 +72,48 @@ impl Drop for Client {
     }
 }
 
-struct UI {
-    input: JoinHandle<eyre::Result<()>>,
-}
-
-impl UI {
-    async fn input(tx: Sender<Message>) -> eyre::Result<()> {
-        let mut stream = EventStream::new();
-
-        while let Some(Ok(event)) = stream.next().await {
-            match event {
-                crossterm::event::Event::Key(key) => tx.send(Message::Input(key)).await?,
-                _ => break,
-            }
-        }
-
-        Ok(())
-    }
-
-    pub fn new(tx: Sender<Message>) -> eyre::Result<Self> {
-        Ok(UI {
-            input: tokio::spawn(Self::input(tx)),
-        })
-    }
-}
-
-impl Drop for UI {
-    fn drop(&mut self) {
-        self.input.abort();
-    }
-}
-
 #[tokio::main]
 async fn main() -> eyre::Result<()> {
     let options = ClientOptions {
         user: String::from("bobby"),
     };
 
-    let mut client = Client::new(options).await?;
-    let _ui = UI::new(client.tx.clone())?;
+    let (mut client, lobby) = Client::new(options).await?;
+    let mut terminal = ratatui::init();
+    let mut ui = UI::init(
+        client.tx.clone(),
+        ui::State::Lobby(Lobby {
+            id: client.id,
+            ready: client.ready,
+            clients: lobby,
+            username: "bobby".to_string(),
+        }),
+    );
 
-    'm: loop {
+    ui.render(&mut terminal)?;
+
+    'main: loop {
         while let Some(message) = client.rx.recv().await {
-            match message {
-                Message::Packet(packet) => match packet {
-                    Packet::RoundLoading => break,
-                    Packet::Lobby {
-                        action,
-                        user,
-                        lobby,
-                    } => {
-                        eprintln!(
-                            "client: client {user} did {action:?}. {} clients in lobby",
-                            lobby.len()
-                        )
+            match &mut ui.state {
+                ui::State::Lobby(state) => match message {
+                    Message::Quit => break 'main,
+                    Message::Ready => {
+                        state.ready = !state.ready;
+                        client
+                            .writer
+                            .write(&Packet::WaitingStatus { ready: state.ready })
+                            .await?;
                     }
-                    _ => continue,
-                },
-                Message::Input(input) => match input.code {
-                    crossterm::event::KeyCode::Char(char) => match char {
-                        'r' => {
-                            client
-                                .writer
-                                .write(&Packet::WaitingStatus { ready: true })
-                                .await?;
-
-                            eprintln!("client: ready");
-                        }
-                        'q' => break 'm,
+                    Message::Packet(packet) => match packet {
+                        Packet::RoundLoading => break,
+                        Packet::Lobby { clients, .. } => state.clients = clients,
                         _ => continue,
                     },
-                    _ => continue,
                 },
+                State::Round => todo!(),
             }
-        }
 
-        eprintln!("server loading...");
-        let (_number, _players, images, text) = loop {
-            match client.rx.recv().await.ok_or(shared::Error::Close)? {
-                Message::Packet(Packet::Round {
-                    number,
-                    players,
-                    images,
-                    text,
-                }) => break (number, players, images, text),
-                Message::Packet(other) => return Err(shared::Error::Illegal(other).into()),
-                Message::Input(_) => continue,
-            }
-        };
-
-        let image = ImageReader::new(BufReader::new(Cursor::new(&images[1])))
-            .with_guessed_format()?
-            .decode()?;
-        let resized = image.resize(120, 90, FilterType::Lanczos3);
-
-        let image = renderer::render(&resized);
-        eprintln!("{image}\nstreet: {}", text.street);
-
-        while let Some(message) = client.rx.recv().await {
-            match message {
-                Message::Packet(packet) => match packet {
-                    Packet::Result { round } => {
-                        eprintln!("client: results:");
-                        for player in round.players {
-                            eprintln!("player {}: {}", player.id, player.points)
-                        }
-                    }
-                    Packet::RoundLoading => break,
-                    other => return Err(shared::Error::Illegal(other).into()),
-                },
-                Message::Input(input) => match input.code {
-                    crossterm::event::KeyCode::Char(char) => match char {
-                        'r' => {
-                            client
-                                .writer
-                                .write(&Packet::WaitingStatus { ready: true })
-                                .await?;
-                            break;
-                        }
-                        'g' => {
-                            client
-                                .writer
-                                .write(&Packet::Guess {
-                                    coordinates: (0.0, 51.0),
-                                })
-                                .await?;
-
-                            eprintln!("client: guess submitted");
-                        }
-                        'q' => break 'm,
-                        _ => continue,
-                    },
-                    _ => continue,
-                },
-            }
+            ui.render(&mut terminal)?;
         }
     }
 

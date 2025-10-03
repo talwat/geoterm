@@ -68,13 +68,13 @@ pub struct Player {
     pub id: usize,
 }
 
-#[derive(Debug, Deserialize, Serialize, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 pub struct Text {
     pub street: String,
     pub additional: Vec<((usize, usize), String)>,
 }
 
-#[derive(Debug, Deserialize, Serialize, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 #[repr(u8)]
 #[serde(tag = "tag")]
 pub enum Packet {
@@ -89,7 +89,7 @@ pub enum Packet {
     Lobby {
         action: LobbyAction,
         user: usize,
-        lobby: Vec<LobbyClient>,
+        clients: Vec<LobbyClient>,
     },
     WaitingStatus {
         ready: bool,

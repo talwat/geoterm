@@ -4,6 +4,7 @@ use std::{
 };
 
 use futures::future::join_all;
+use rand::seq::index;
 use shared::{LobbyAction, LobbyClient, Packet, Round};
 use tokio::{
     io::AsyncWriteExt,
@@ -88,7 +89,9 @@ impl Server {
             self.clients.remove(index);
         };
 
-        if self.clients.iter().filter(|x| x.options.is_some()).count() < 2 {
+        if self.state == State::Lobby {
+            self.broadcast_lobby(client, LobbyAction::Leave).await;
+        } else if self.clients.iter().filter(|x| x.options.is_some()).count() < 2 {
             eprintln!("server: not enough players, returning to lobby...");
             self.return_to_lobby().await;
         }
@@ -123,12 +126,12 @@ impl Server {
     }
 
     pub async fn broadcast_lobby(&mut self, id: usize, action: LobbyAction) {
-        let lobby = self.lobby().await;
+        let clients = self.lobby().await;
         self.broadcast(
             &Packet::Lobby {
                 action,
                 user: id,
-                lobby,
+                clients,
             },
             Some(id),
         )
