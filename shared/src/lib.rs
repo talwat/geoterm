@@ -107,6 +107,7 @@ pub enum Packet {
     Result {
         round: Round,
     },
+    ReturnToLobby,
 }
 
 #[derive(Debug, thiserror::Error)]

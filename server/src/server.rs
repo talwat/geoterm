@@ -77,11 +77,21 @@ impl Server {
         Ok(())
     }
 
+    pub async fn return_to_lobby(&mut self) {
+        self.state = State::Lobby;
+        self.broadcast(&Packet::ReturnToLobby, None).await;
+    }
+
     pub async fn kick(&mut self, client: usize, error: shared::Error) {
         eprintln!("server(client {client}): removed: {error}");
         if let Some(index) = self.clients.iter().position(|x| x.id == client) {
             self.clients.remove(index);
         };
+
+        if self.clients.iter().filter(|x| x.options.is_some()).count() < 2 {
+            eprintln!("server: not enough players, returning to lobby...");
+            self.return_to_lobby().await;
+        }
     }
 
     pub async fn broadcast(&mut self, packet: &Packet, exclude: Option<usize>) {
@@ -176,7 +186,7 @@ impl Server {
                         Ok(Packet::WaitingStatus { ready }) => {
                             if !ready {
                                 eprintln!("server(client {id}): returning to lobby...");
-                                self.state = State::Lobby;
+                                self.return_to_lobby().await;
                                 continue;
                             }
 
