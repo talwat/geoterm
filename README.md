@@ -11,5 +11,11 @@ to play on effectively any serial device with a little work, like a gameboy or c
 ## Plans
 
 * Varied levels of image quality for different devices.
+* Simple 2x zoom functionality (again to accomodate low resolution).
 * OCR in multiple languages to accompany lower quality image data.
-* Simple lobby/start system
+
+## Communication Protocol Details
+
+Here, all communication is done through raw TCP. [msgpack](https://msgpack.org/index.html) is used
+to encode the data, since it's language agnostic. In addition, all packets begin with a 4 byte length,
+where all numbers in the entire packet are in big-endian.
