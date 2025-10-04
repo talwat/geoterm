@@ -1,3 +1,5 @@
+use std::io::Cursor;
+
 use shared::{ClientOptions, FramedSplitExt, LobbyClient, Packet, PacketReadExt, PacketWriteExt};
 use tokio::{
     net::{
@@ -9,7 +11,7 @@ use tokio::{
 };
 use tokio_util::codec::{FramedRead, FramedWrite, LengthDelimitedCodec};
 
-use crate::ui::{State, UI, lobby::Lobby};
+use crate::ui::{UI, lobby, round};
 
 pub mod ui;
 
@@ -43,7 +45,7 @@ impl Client {
 
     pub async fn new(options: ClientOptions) -> eyre::Result<(Self, Vec<LobbyClient>)> {
         let (tx, rx) = mpsc::channel(8);
-        let stream = TcpStream::connect("127.0.0.1:3000").await?;
+        let stream = TcpStream::connect("127.0.0.1:4000").await?;
         let (mut reader, mut writer) = stream.framed_split();
 
         writer.write(&Packet::Init { options }).await?;
@@ -72,6 +74,12 @@ impl Drop for Client {
     }
 }
 
+pub enum State {
+    Loading,
+    Lobby(lobby::Lobby),
+    Round(round::Round),
+}
+
 #[tokio::main]
 async fn main() -> eyre::Result<()> {
     let options = ClientOptions {
@@ -80,40 +88,64 @@ async fn main() -> eyre::Result<()> {
 
     let (mut client, lobby) = Client::new(options).await?;
     let mut terminal = ratatui::init();
-    let mut ui = UI::init(
-        client.tx.clone(),
-        ui::State::Lobby(Lobby {
-            id: client.id,
-            ready: client.ready,
-            clients: lobby,
-            username: "bobby".to_string(),
-        }),
-    );
+    let mut state = State::Lobby(lobby::Lobby {
+        id: client.id,
+        ready: client.ready,
+        clients: lobby,
+        username: "bobby".to_string(),
+    });
 
-    ui.render(&mut terminal)?;
+    let mut ui = UI::init(client.tx.clone());
+    ui.render(&mut terminal, &state)?;
 
     'main: loop {
         while let Some(message) = client.rx.recv().await {
-            match &mut ui.state {
-                ui::State::Lobby(state) => match message {
+            match &mut state {
+                State::Lobby(lobby) => match message {
                     Message::Quit => break 'main,
                     Message::Ready => {
-                        state.ready = !state.ready;
+                        lobby.ready = !lobby.ready;
                         client
                             .writer
-                            .write(&Packet::WaitingStatus { ready: state.ready })
+                            .write(&Packet::WaitingStatus { ready: lobby.ready })
                             .await?;
                     }
                     Message::Packet(packet) => match packet {
-                        Packet::RoundLoading => break,
-                        Packet::Lobby { clients, .. } => state.clients = clients,
+                        Packet::RoundLoading => state = State::Loading,
+                        Packet::Lobby { clients, .. } => lobby.clients = clients,
                         _ => continue,
                     },
                 },
-                State::Round => todo!(),
+                State::Loading => match message {
+                    Message::Quit => break 'main,
+                    Message::Ready => {}
+                    Message::Packet(packet) => match packet {
+                        Packet::Round {
+                            number,
+                            text,
+                            images,
+                        } => {
+                            state = State::Round(round::Round {
+                                images: images.map(|x| {
+                                    image::ImageReader::new(Cursor::new(x))
+                                        .with_guessed_format()
+                                        .unwrap()
+                                        .decode()
+                                        .unwrap()
+                                        .to_rgb8()
+                                }),
+                                street: text.street,
+                                guessed: false,
+                                number,
+                            })
+                        }
+                        _ => continue,
+                    },
+                },
+                State::Round(round) => todo!(),
             }
 
-            ui.render(&mut terminal)?;
+            ui.render(&mut terminal, &state)?;
         }
     }
 

@@ -40,7 +40,6 @@ pub async fn new(server: &mut Server, old: Option<&Round>) -> Result<State, Erro
         .broadcast(
             &shared::Packet::Round {
                 number,
-                players: players.clone(),
                 images: bytes.clone(),
                 text: Text {
                     street: data.address.split(", ").next().unwrap().to_owned(),

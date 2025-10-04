@@ -97,12 +97,14 @@ pub enum Packet {
     RoundLoading,
     Round {
         number: usize,
-        players: Vec<Player>,
         text: Text,
         images: [Vec<u8>; 3],
     },
     Guess {
         coordinates: (f32, f32),
+    },
+    Guessed {
+        player: usize,
     },
     Result {
         round: Round,

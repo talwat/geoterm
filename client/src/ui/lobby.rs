@@ -1,11 +1,13 @@
 use ratatui::{
     buffer::Buffer,
-    layout::{Alignment, Constraint, Direction, Flex, Layout, Rect},
+    layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Style, Stylize},
     text::{Line, Span},
     widgets::{Block, Paragraph, Widget},
 };
 use shared::LobbyClient;
+
+use crate::ui::center;
 
 #[derive(Debug, Default)]
 pub struct Lobby {
@@ -13,14 +15,6 @@ pub struct Lobby {
     pub username: String,
     pub ready: bool,
     pub id: usize,
-}
-
-fn center(area: Rect, horizontal: Constraint, vertical: Constraint) -> Rect {
-    let [area] = Layout::horizontal([horizontal])
-        .flex(Flex::Center)
-        .areas(area);
-    let [area] = Layout::vertical([vertical]).flex(Flex::Center).areas(area);
-    area
 }
 
 impl Widget for &Lobby {

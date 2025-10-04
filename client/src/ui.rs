@@ -1,33 +1,45 @@
 use crossterm::event::{self, Event, KeyCode, KeyModifiers};
 use futures::StreamExt;
-use ratatui::{DefaultTerminal, Frame, widgets::Widget};
+use ratatui::{
+    DefaultTerminal, Frame,
+    layout::{Constraint, Flex, Layout, Rect},
+    widgets::Widget,
+};
 use tokio::{sync::mpsc::Sender, task::JoinHandle};
 
-use crate::{Message, ui::lobby::Lobby};
+use crate::{Message, State};
 
+pub mod loading;
 pub mod lobby;
+pub mod round;
 
-pub enum State {
-    Lobby(Lobby),
-    Round,
+pub fn center(area: Rect, horizontal: Constraint, vertical: Constraint) -> Rect {
+    let [area] = Layout::horizontal([horizontal])
+        .flex(Flex::Center)
+        .areas(area);
+    let [area] = Layout::vertical([vertical]).flex(Flex::Center).areas(area);
+    area
 }
 
 pub struct UI {
-    pub state: State,
     input: JoinHandle<eyre::Result<()>>,
     _tx: Sender<crate::Message>,
 }
 
 impl UI {
-    fn draw(&self, frame: &mut Frame) {
-        match &self.state {
-            State::Lobby(lobby) => lobby.render(frame.area(), frame.buffer_mut()),
-            State::Round => todo!(),
+    fn draw(&self, frame: &mut Frame, state: &State) {
+        let area = frame.area();
+        let buf = frame.buffer_mut();
+
+        match state {
+            State::Lobby(lobby) => lobby.render(area, buf),
+            State::Round(round) => round.render(area, buf),
+            State::Loading => loading::render(area, buf),
         }
     }
 
-    pub fn render(&mut self, terminal: &mut DefaultTerminal) -> eyre::Result<()> {
-        terminal.draw(|frame| self.draw(frame))?;
+    pub fn render(&mut self, terminal: &mut DefaultTerminal, state: &State) -> eyre::Result<()> {
+        terminal.draw(|frame| self.draw(frame, state))?;
         Ok(())
     }
 
@@ -48,9 +60,8 @@ impl UI {
         Ok(())
     }
 
-    pub fn init(tx: Sender<crate::Message>, state: State) -> Self {
+    pub fn init(tx: Sender<crate::Message>) -> Self {
         Self {
-            state,
             _tx: tx.clone(),
             input: tokio::spawn(Self::input(tx)),
         }

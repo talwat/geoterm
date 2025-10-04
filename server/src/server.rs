@@ -4,7 +4,6 @@ use std::{
 };
 
 use futures::future::join_all;
-use rand::seq::index;
 use shared::{LobbyAction, LobbyClient, Packet, Round};
 use tokio::{
     io::AsyncWriteExt,
@@ -140,7 +139,7 @@ impl Server {
 
     pub async fn new() -> Result<Self, Error> {
         let (tx, rx) = mpsc::channel(8);
-        let tcp = TcpListener::bind("127.0.0.1:3000").await?;
+        let tcp = TcpListener::bind("127.0.0.1:4000").await?;
         let listener = tokio::spawn(Self::listen(tcp, tx.clone()));
 
         Ok(Self {
@@ -178,6 +177,9 @@ impl Server {
                             if round.players.iter().all(|x| x.guess.is_some()) {
                                 self.tx.send(Message::GuessingComplete).await?;
                             }
+
+                            self.broadcast(&Packet::Guessed { player: id }, Some(id))
+                                .await;
                         }
                         Ok(other) => self.kick(id, shared::Error::Illegal(other)).await,
                         Err(error) => self.kick(id, error).await,
