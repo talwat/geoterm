@@ -7,7 +7,10 @@ use shared::Player;
 
 pub async fn new(server: &mut Server, old: Option<&Round>) -> Result<State, Error> {
     eprintln!("server: initializing round");
-    server.broadcast(&shared::Packet::RoundLoading, None).await;
+    let lobby = server.lobby().await;
+    server
+        .broadcast(&shared::Packet::RoundLoading { lobby }, None)
+        .await;
 
     let number = old.and_then(|x| Some(x.number + 1)).unwrap_or(0);
     let players: Vec<Player> = if let Some(old_round) = old {

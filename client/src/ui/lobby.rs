@@ -39,7 +39,7 @@ impl Widget for &Lobby {
                 let mut line: Line = if you {
                     Span::styled("- you", style.italic())
                 } else {
-                    Span::styled(format!("- {}", &x.user), style)
+                    Span::styled(format!("- {}", &x.options.user), style)
                 }
                 .into();
 

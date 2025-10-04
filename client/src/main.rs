@@ -1,6 +1,9 @@
 use std::io::Cursor;
 
-use shared::{ClientOptions, FramedSplitExt, LobbyClient, Packet, PacketReadExt, PacketWriteExt};
+use crossterm::event::KeyCode;
+use shared::{
+    ClientOptions, FramedSplitExt, LobbyAction, LobbyClient, Packet, PacketReadExt, PacketWriteExt,
+};
 use tokio::{
     net::{
         TcpStream,
@@ -15,16 +18,19 @@ use crate::ui::{UI, lobby, round};
 
 pub mod ui;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Message {
     Quit,
     Ready,
+    Resize,
+    Key(KeyCode),
     Packet(Packet),
 }
 
 struct Client {
     ready: bool,
     id: usize,
+    options: ClientOptions,
     writer: FramedWrite<OwnedWriteHalf, LengthDelimitedCodec>,
     rx: Receiver<Message>,
     tx: Sender<Message>,
@@ -48,7 +54,11 @@ impl Client {
         let stream = TcpStream::connect("127.0.0.1:4000").await?;
         let (mut reader, mut writer) = stream.framed_split();
 
-        writer.write(&Packet::Init { options }).await?;
+        writer
+            .write(&Packet::Init {
+                options: options.clone(),
+            })
+            .await?;
 
         let (id, .., lobby) = match reader.read().await? {
             Packet::Confirmed { id, options, lobby } => (id, options, lobby),
@@ -58,6 +68,7 @@ impl Client {
         let client = Self {
             ready: false,
             id,
+            options,
             writer,
             rx,
             handle: tokio::spawn(Self::listener(reader, tx.clone())),
@@ -83,6 +94,7 @@ pub enum State {
 #[tokio::main]
 async fn main() -> eyre::Result<()> {
     let options = ClientOptions {
+        color: shared::Color::Blue,
         user: String::from("bobby"),
     };
 
@@ -91,34 +103,48 @@ async fn main() -> eyre::Result<()> {
     let mut state = State::Lobby(lobby::Lobby {
         id: client.id,
         ready: client.ready,
-        clients: lobby,
+        clients: lobby.clone(),
         username: "bobby".to_string(),
     });
 
     let mut ui = UI::init(client.tx.clone());
     ui.render(&mut terminal, &state)?;
 
+    let mut players: Vec<LobbyClient> = lobby;
+
     'main: loop {
         while let Some(message) = client.rx.recv().await {
+            if message == Message::Quit {
+                break 'main;
+            }
+
+            if message == Message::Resize {
+                ui.render(&mut terminal, &state)?;
+                continue;
+            }
+
             match &mut state {
-                State::Lobby(lobby) => match message {
-                    Message::Quit => break 'main,
+                State::Lobby(lobby_state) => match message {
                     Message::Ready => {
-                        lobby.ready = !lobby.ready;
+                        lobby_state.ready = !lobby_state.ready;
                         client
                             .writer
-                            .write(&Packet::WaitingStatus { ready: lobby.ready })
+                            .write(&Packet::WaitingStatus {
+                                ready: lobby_state.ready,
+                            })
                             .await?;
                     }
                     Message::Packet(packet) => match packet {
-                        Packet::RoundLoading => state = State::Loading,
-                        Packet::Lobby { clients, .. } => lobby.clients = clients,
+                        Packet::RoundLoading { lobby } => {
+                            players = lobby;
+                            state = State::Loading
+                        }
+                        Packet::LobbyEvent { lobby, .. } => lobby_state.clients = lobby,
                         _ => continue,
                     },
+                    _ => continue,
                 },
                 State::Loading => match message {
-                    Message::Quit => break 'main,
-                    Message::Ready => {}
                     Message::Packet(packet) => match packet {
                         Packet::Round {
                             number,
@@ -134,15 +160,63 @@ async fn main() -> eyre::Result<()> {
                                         .unwrap()
                                         .to_rgb8()
                                 }),
+                                cursor: (0.0, 0.0),
                                 street: text.street,
                                 guessed: false,
+                                guessing: false,
                                 number,
                             })
                         }
                         _ => continue,
                     },
+                    _ => continue,
                 },
-                State::Round(round) => todo!(),
+                State::Round(round) => match message {
+                    Message::Key(key) => match key {
+                        KeyCode::Char(x) => match x {
+                            'g' => round.guessing = !round.guessing,
+                            ' ' => {
+                                round.guessed = true;
+                                client
+                                    .writer
+                                    .write(&Packet::Guess {
+                                        coordinates: round.cursor,
+                                    })
+                                    .await?;
+                            }
+                            _ => continue,
+                        },
+                        KeyCode::Up => round.cursor.1 += 3.0,
+                        KeyCode::Down => round.cursor.1 -= 3.0,
+                        KeyCode::Left => round.cursor.0 -= 3.0,
+                        KeyCode::Right => round.cursor.0 += 3.0,
+                        _ => continue,
+                    },
+                    Message::Packet(packet) => match packet {
+                        Packet::LobbyEvent {
+                            action,
+                            user,
+                            lobby,
+                        } => {
+                            if action == LobbyAction::Return {
+                                state = State::Lobby(lobby::Lobby {
+                                    clients: lobby,
+                                    username: client.options.user.clone(),
+                                    ready: false,
+                                    id: client.id,
+                                });
+                            }
+                        }
+                        Packet::Guessed { player } => {}
+                        Packet::Result { round } => {
+                            ratatui::restore();
+                            dbg!(round);
+                            break;
+                        }
+                        _ => continue,
+                    },
+                    _ => continue,
+                },
             }
 
             ui.render(&mut terminal, &state)?;

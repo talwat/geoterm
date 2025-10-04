@@ -77,9 +77,9 @@ impl Server {
         Ok(())
     }
 
-    pub async fn return_to_lobby(&mut self) {
+    pub async fn return_to_lobby(&mut self, id: usize) {
         self.state = State::Lobby;
-        self.broadcast(&Packet::ReturnToLobby, None).await;
+        self.broadcast_lobby(id, LobbyAction::Return).await;
     }
 
     pub async fn kick(&mut self, client: usize, error: shared::Error) {
@@ -92,7 +92,7 @@ impl Server {
             self.broadcast_lobby(client, LobbyAction::Leave).await;
         } else if self.clients.iter().filter(|x| x.options.is_some()).count() < 2 {
             eprintln!("server: not enough players, returning to lobby...");
-            self.return_to_lobby().await;
+            self.return_to_lobby(client).await;
         }
     }
 
@@ -118,7 +118,7 @@ impl Server {
                 Some(LobbyClient {
                     id: x.id,
                     ready: x.ready,
-                    user: x.options.as_ref()?.user.clone(),
+                    options: x.options.clone()?,
                 })
             })
             .collect()
@@ -127,10 +127,10 @@ impl Server {
     pub async fn broadcast_lobby(&mut self, id: usize, action: LobbyAction) {
         let clients = self.lobby().await;
         self.broadcast(
-            &Packet::Lobby {
+            &Packet::LobbyEvent {
                 action,
                 user: id,
-                clients,
+                lobby: clients,
             },
             Some(id),
         )
@@ -191,7 +191,7 @@ impl Server {
                         Ok(Packet::WaitingStatus { ready }) => {
                             if !ready {
                                 eprintln!("server(client {id}): returning to lobby...");
-                                self.return_to_lobby().await;
+                                self.return_to_lobby(id).await;
                                 continue;
                             }
 

@@ -1,12 +1,12 @@
-use image::{ImageBuffer, RgbImage};
+use image::RgbImage;
 use ratatui::{
     buffer::Buffer,
     layout::{Alignment, Constraint, Layout, Rect},
     style::Color,
     symbols,
     widgets::{
-        Block, Padding, Paragraph, Widget,
-        canvas::{self, Canvas, Painter},
+        Block, Paragraph, Widget,
+        canvas::{self, Canvas, Context, Map},
     },
 };
 
@@ -15,6 +15,38 @@ pub struct Round {
     pub street: String,
     pub number: usize,
     pub guessed: bool,
+    pub guessing: bool,
+    pub cursor: (f32, f32),
+}
+
+impl Round {
+    fn draw_guesser(&self, ctx: &mut Context<'_>) {
+        ctx.draw(&Map {
+            resolution: canvas::MapResolution::High,
+            color: Color::White,
+        });
+
+        ctx.draw(&canvas::Points {
+            coords: &[(self.cursor.0 as f64, self.cursor.1 as f64)],
+            color: Color::Red,
+        });
+    }
+
+    fn draw_image(&self, ctx: &mut Context<'_>, height: f64) {
+        let points = self.images[1].enumerate_pixels().map(|(x, y, p)| {
+            let [r, g, b] = p.0;
+            let color = Color::Rgb(r, g, b);
+            let y = height - y as f64;
+            ((x as f64), y, color)
+        });
+
+        for (x, y, color) in points {
+            ctx.draw(&canvas::Points {
+                coords: &[(x, y)],
+                color,
+            });
+        }
+    }
 }
 
 impl Widget for &Round {
@@ -45,21 +77,21 @@ impl Widget for &Round {
 
         Canvas::default()
             .marker(symbols::Marker::HalfBlock)
-            .x_bounds([0.0, width])
-            .y_bounds([0.0, height])
+            .x_bounds(if self.guessing {
+                [-180.0, 180.0]
+            } else {
+                [0.0, width]
+            })
+            .y_bounds(if self.guessing {
+                [-90.0, 90.0]
+            } else {
+                [0.0, height]
+            })
             .paint(|ctx| {
-                let points = image.enumerate_pixels().map(|(x, y, p)| {
-                    let [r, g, b] = p.0;
-                    let color = Color::Rgb(r, g, b);
-                    let y = height - y as f64;
-                    ((x as f64), y, color)
-                });
-
-                for (x, y, color) in points {
-                    ctx.draw(&canvas::Points {
-                        coords: &[(x, y)],
-                        color,
-                    });
+                if self.guessing {
+                    self.draw_guesser(ctx);
+                } else {
+                    self.draw_image(ctx, height);
                 }
             })
             .render(layout[1], buf);

@@ -1,14 +1,12 @@
 use ratatui::{
     buffer::Buffer,
     layout::{Constraint, Rect},
-    symbols,
-    widgets::{Block, Padding, Paragraph, Widget, canvas::Canvas},
+    widgets::{Block, Padding, Paragraph, Widget},
 };
 
-use crate::{State, ui::center};
+use crate::ui::center;
 
-pub fn render(area: Rect, buf: &mut Buffer) {
-    let message = "loading...";
+pub fn render(area: Rect, buf: &mut Buffer, message: &str) {
     let centered = center(
         area,
         Constraint::Length(message.len() as u16 + 4),

@@ -44,25 +44,37 @@ impl IndexMut<usize> for Round {
 pub struct LobbyClient {
     pub id: usize,
     pub ready: bool,
-    pub user: String,
+    pub options: ClientOptions,
 }
 
-#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone, Copy)]
 #[repr(u8)]
 pub enum LobbyAction {
     Join = 0,
+    Return,
     Leave,
     Ready,
+}
+
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone, Copy)]
+#[repr(u8)]
+pub enum Color {
+    Red = 0,
+    Orange,
+    Yellow,
+    Green,
+    Blue,
+    Purple,
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 pub struct ClientOptions {
     pub user: String,
+    pub color: Color,
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone, Copy)]
 pub struct Player {
-    #[serde(skip)]
     pub guess: Option<(f32, f32)>,
     pub points: u64,
     pub id: usize,
@@ -86,15 +98,17 @@ pub enum Packet {
         options: ClientOptions,
         lobby: Vec<LobbyClient>,
     },
-    Lobby {
+    LobbyEvent {
         action: LobbyAction,
         user: usize,
-        clients: Vec<LobbyClient>,
+        lobby: Vec<LobbyClient>,
     },
     WaitingStatus {
         ready: bool,
     },
-    RoundLoading,
+    RoundLoading {
+        lobby: Vec<LobbyClient>,
+    },
     Round {
         number: usize,
         text: Text,
