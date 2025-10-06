@@ -196,7 +196,7 @@ async fn main() -> eyre::Result<()> {
                     Message::Packet(packet) => match packet {
                         Packet::LobbyEvent {
                             action,
-                            user,
+                            user: _,
                             lobby,
                         } => {
                             if action == LobbyAction::Return {
@@ -208,7 +208,7 @@ async fn main() -> eyre::Result<()> {
                                 });
                             }
                         }
-                        Packet::Guessed { player } => {}
+                        Packet::Guessed { player: _ } => {}
                         Packet::Result { round } => {
                             state = State::Results(results::Results {
                                 data: round,
@@ -221,7 +221,7 @@ async fn main() -> eyre::Result<()> {
                     },
                     _ => continue,
                 },
-                State::Results(results) => match message {
+                State::Results(_results) => match message {
                     _ => continue,
                 },
             }
