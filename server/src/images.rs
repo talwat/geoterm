@@ -1,7 +1,7 @@
-use std::io::{BufWriter, Cursor};
+use std::io::Cursor;
 
 use crate::{error::Error, images::huggingface::Data};
-use image::{GenericImageView, ImageFormat, ImageReader, imageops};
+use image::{imageops, GenericImageView, ImageReader};
 
 pub mod huggingface;
 
@@ -41,10 +41,7 @@ pub async fn images() -> Result<([Vec<u8>; 3], Data), Error> {
         );
 
         let mut buf = Vec::with_capacity(resized.width() as usize * resized.height() as usize * 3);
-        {
-            let mut writer = BufWriter::new(Cursor::new(&mut buf));
-            resized.write_to(&mut writer, ImageFormat::Bmp).unwrap();
-        }
+        shared::image::encode(resized, Cursor::new(&mut buf)).unwrap();
 
         buf
     });

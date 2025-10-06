@@ -11,6 +11,8 @@ use tokio_util::codec::{FramedRead, FramedWrite, LengthDelimitedCodec};
 pub type Writer = FramedWrite<OwnedWriteHalf, LengthDelimitedCodec>;
 pub type Reader = FramedRead<OwnedReadHalf, LengthDelimitedCodec>;
 
+pub mod image;
+
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct Round {
     pub number: usize,

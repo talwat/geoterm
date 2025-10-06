@@ -3,10 +3,10 @@
 > [!WARNING]
 > This project is in an extremely early stage and completely non-functional.
 
-geoterm is, first and foremost, geoguessr: terminal edition. That's pretty much it.
+geoterm is, first and foremost, geoguessr: calculator edition. That's pretty much it.
 
-As a secondary goal, there should also be a rudimentary serial client that can be used
-to play on effectively any serial device with a little work, like a gameboy or calculator.
+As a secondary goal, there should also be a rudimentary terminal client that can be used
+to play on PC.
 
 ## Plans
 
