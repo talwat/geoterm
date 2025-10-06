@@ -11,6 +11,7 @@ use crate::{Message, State};
 
 pub mod loading;
 pub mod lobby;
+pub mod results;
 pub mod round;
 
 pub fn center(area: Rect, horizontal: Constraint, vertical: Constraint) -> Rect {
@@ -41,6 +42,7 @@ impl UI {
                 }
             }
             State::Loading => loading::render(area, buf, "loading..."),
+            State::Results(results) => results.render(area, buf),
         }
     }
 

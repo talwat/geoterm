@@ -60,11 +60,10 @@ pub enum LobbyAction {
 #[repr(u8)]
 pub enum Color {
     Red = 0,
-    Orange,
     Yellow,
     Green,
     Blue,
-    Purple,
+    Magenta,
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]

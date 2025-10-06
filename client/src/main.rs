@@ -14,7 +14,7 @@ use tokio::{
 };
 use tokio_util::codec::{FramedRead, FramedWrite, LengthDelimitedCodec};
 
-use crate::ui::{UI, lobby, round};
+use crate::ui::{UI, lobby, results, round};
 
 pub mod ui;
 
@@ -89,6 +89,7 @@ pub enum State {
     Loading,
     Lobby(lobby::Lobby),
     Round(round::Round),
+    Results(results::Results),
 }
 
 #[tokio::main]
@@ -209,12 +210,18 @@ async fn main() -> eyre::Result<()> {
                         }
                         Packet::Guessed { player } => {}
                         Packet::Result { round } => {
-                            ratatui::restore();
-                            dbg!(round);
+                            state = State::Results(results::Results {
+                                data: round,
+                                lobby: players.clone(),
+                            });
+
                             break;
                         }
                         _ => continue,
                     },
+                    _ => continue,
+                },
+                State::Results(results) => match message {
                     _ => continue,
                 },
             }
