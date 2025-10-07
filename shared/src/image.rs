@@ -10,10 +10,13 @@ pub fn encode(image: RgbaImage, mut buf: Cursor<&mut [u8]>) -> std::io::Result<(
         let [r, g, b, _a] = pixel.channels() else {
             panic!("channels don't match up!")
         };
-        let [r, g, b] = [*r as u16, *g as u16, *b as u16];
 
-        let combined = (r << 11) | (g << 5) | b;
-        buf.write_all(&combined.to_be_bytes())?;
+        let r = (*r >> 5) & 0x07;
+        let g = (*g >> 5) & 0x07;
+        let b = (*b >> 6) & 0x03;
+
+        let combined = (r << 5) | (g << 2) | b;
+        buf.write_all(&[combined])?;
     }
 
     Ok(())
@@ -27,18 +30,17 @@ pub fn decode(mut buf: Cursor<&[u8]>, width: u32, height: u32) -> std::io::Resul
 
     for y in 0..height {
         for x in 0..width {
-            let mut bytes = [0u8; 2];
-            buf.read_exact(&mut bytes)?;
+            let mut byte = [0u8; 1];
+            buf.read_exact(&mut byte)?;
+            let combined = byte[0];
 
-            let combined = u16::from_be_bytes(bytes);
+            let r = (combined >> 5) & 0x07;
+            let g = (combined >> 2) & 0x07;
+            let b = combined & 0x03;
 
-            let r = ((combined >> 11) & 0x1F) as u8;
-            let g = ((combined >> 5) & 0x3F) as u8;
-            let b = (combined & 0x1F) as u8;
-
-            let r = (r as u16 * 255 / 31) as u8;
-            let g = (g as u16 * 255 / 63) as u8;
-            let b = (b as u16 * 255 / 31) as u8;
+            let r = (r as u16 * 255 / 7) as u8;
+            let g = (g as u16 * 255 / 7) as u8;
+            let b = (b as u16 * 255 / 3) as u8;
 
             img.put_pixel(x, y, Rgba([r, g, b, 255]));
         }

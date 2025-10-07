@@ -40,7 +40,7 @@ pub async fn images() -> Result<([Vec<u8>; 3], Data), Error> {
             image::imageops::FilterType::Lanczos3,
         );
 
-        let mut buf = Vec::with_capacity(resized.width() as usize * resized.height() as usize * 3);
+        let mut buf = Vec::with_capacity(320*240);
         shared::image::encode(resized, Cursor::new(&mut buf)).unwrap();
 
         buf
