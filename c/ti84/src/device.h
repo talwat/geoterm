@@ -1,6 +1,7 @@
 #ifndef USB_HANDLER_H
 #define USB_HANDLER_H
 
+#include <srldrvce.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <usbdrvce.h>

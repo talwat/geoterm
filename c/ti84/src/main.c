@@ -1,42 +1,48 @@
-#include "device.h"
 #include <debug.h>
 #include <graphx.h>
 #include <keypadc.h>
+#include <msgpack.h>
 #include <srldrvce.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
 #include <tice.h>
 
+#include "device.h"
+
 uint32_t assemble_u32_be(const char bytes[4]) {
-    return ((uint32_t)bytes[0] << 24) |
-           ((uint32_t)bytes[1] << 16) |
-           ((uint32_t)bytes[2] << 8)  |
+    return ((uint32_t)bytes[0] << 24) | ((uint32_t)bytes[1] << 16) | ((uint32_t)bytes[2] << 8) |
            ((uint32_t)bytes[3]);
 }
 
 // Do NOT use this to read a packet that is very big.
-char* read() {
-	uint8_t len_bytes[4];
-	srl_Read(&srl, &len_bytes, 4);
-	uint32_t len = assemble_u32_be(len_bytes);
+char *read() {
+    char len_bytes[4];
+    srl_Read(&srl, &len_bytes, 4);
+    uint32_t len = assemble_u32_be(len_bytes);
 
-	char* buf = malloc(len);
+    char *buf = malloc(len);
     size_t n = srl_Read(&srl, buf, len);
 
-    if (n < 0) {
-		return NULL;
-    } else if (n > 0) {
-		return buf;
+    if (n <= 0) {
+        return NULL;
+    } else {
+        return buf;
     }
 }
 
 int main(void) {
-    os_ClrHome();
-	os_SetCursorPos(0, 0);
-	os_PutStrFull("geoterm ti84: initializing...");
+    msgpack_sbuffer sbuf;
+    msgpack_sbuffer_init(&sbuf);
 
-	os_SetCursorPos(1, 0);
+    msgpack_packer pk;
+    msgpack_packer_init(&pk, &sbuf, msgpack_sbuffer_write);
+
+    os_ClrHome();
+    os_SetCursorPos(0, 0);
+    os_PutStrFull("geoterm ti84: initializing...");
+
+    os_SetCursorPos(1, 0);
     const usb_standard_descriptors_t *desc = srl_GetCDCStandardDescriptors();
     usb_error_t usb_error = usb_Init(usb_handler, NULL, desc, USB_DEFAULT_INIT_FLAGS);
     if (usb_error) {
@@ -48,7 +54,7 @@ int main(void) {
         return 1;
     }
 
-	os_PutStrFull("initialized serial connection! :)");
+    os_PutStrFull("initialized serial connection! :)");
     do {
         kb_Scan();
         usb_HandleEvents();
@@ -59,5 +65,6 @@ int main(void) {
     } while (!kb_IsDown(kb_KeyClear));
 
     usb_Cleanup();
+    msgpack_sbuffer_destroy(&sbuf);
     return 0;
 }

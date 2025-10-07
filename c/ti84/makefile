@@ -1,23 +1,12 @@
-# ----------------------------
-# Makefile Options
-# ----------------------------
-
-NAME = SRLDEMO
-DESCRIPTION = "CE C Toolchain Serial Demo"
+NAME = GEOTERM
+DESCRIPTION = "Geoguessr calculator edition"
 COMPRESSED = NO
 
-CFLAGS = -Wall -Wextra -Oz
-CXXFLAGS = -Wall -Wextra -Oz
+CFLAGS = -Wall -Wextra -Oz -Iinclude
+CXXFLAGS = -Wall -Wextra -Oz -Iinclude
+LIBS = -Llibs -lmsgpack
 
-CEmu = /Applications/CEmu.app/Contents/MacOS/CEmu
 
 # ----------------------------
 
 include $(shell cedev-config --makefile)
-
-run:
-	$(CEmu) -s $(PWD)/bin/SRLDEMO.8xp --launch prgmSRLDEMO
-
-full:
-	$(MAKE)
-	$(MAKE) run
