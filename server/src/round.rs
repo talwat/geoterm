@@ -1,11 +1,11 @@
 use geoutils::Location;
-use shared::{Round, Text};
+use shared::RoundData;
 
 use crate::server::State;
 use crate::{Server, error::Error, images::images};
 use shared::Player;
 
-pub async fn new(server: &mut Server, old: Option<&Round>) -> Result<State, Error> {
+pub async fn new(server: &mut Server, old: Option<&RoundData>) -> Result<State, Error> {
     eprintln!("server: initializing round");
     let lobby = server.lobby().await;
     server
@@ -43,11 +43,7 @@ pub async fn new(server: &mut Server, old: Option<&Round>) -> Result<State, Erro
         .broadcast(
             &shared::Packet::Round {
                 number,
-                images: bytes.clone(),
-                text: Text {
-                    street: data.address.split(", ").next().unwrap().to_owned(),
-                    additional: Vec::new(),
-                },
+                image: bytes[1].clone().to_vec(),
             },
             None,
         )
@@ -55,18 +51,18 @@ pub async fn new(server: &mut Server, old: Option<&Round>) -> Result<State, Erro
     eprintln!("server: sent data to players");
 
     eprintln!("server: starting round {number}");
-    Ok(State::Round(Round {
+    Ok(State::Round(RoundData {
         answer: data.coordinates,
         number,
         players,
     }))
 }
 
-pub fn results(round: &mut Round) {
+pub fn results(round: &mut RoundData) {
     let answer = Location::new(round.answer.0, round.answer.1);
 
     for player in &mut round.players {
-        let distance = Location::new(player.guess.unwrap().0, player.guess.unwrap().1)
+        let distance = Location::new(player.guess.unwrap().lon, player.guess.unwrap().lat)
             .haversine_distance_to(&answer)
             .meters();
         const SIGMA: f64 = 3000.0 * 1000.0;

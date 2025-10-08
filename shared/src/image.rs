@@ -1,5 +1,5 @@
+use image::{Pixel, Rgb, RgbImage, RgbaImage};
 use std::io::{Cursor, Read, Write};
-use image::{Pixel, Rgba, RgbaImage};
 
 pub fn encode(image: RgbaImage, mut buf: Cursor<&mut [u8]>) -> std::io::Result<()> {
     let (width, height) = image.dimensions();
@@ -22,11 +22,11 @@ pub fn encode(image: RgbaImage, mut buf: Cursor<&mut [u8]>) -> std::io::Result<(
     Ok(())
 }
 
-pub fn decode(mut buf: Cursor<&[u8]>, width: u32, height: u32) -> std::io::Result<RgbaImage> {
+pub fn decode(mut buf: Cursor<&[u8]>, width: u32, height: u32) -> std::io::Result<RgbImage> {
     assert!(width % 320 == 0, "width is incorrect!");
     assert!(height % 240 == 0, "height is incorrect!");
 
-    let mut img = RgbaImage::new(width, height);
+    let mut img = RgbImage::new(width, height);
 
     for y in 0..height {
         for x in 0..width {
@@ -42,7 +42,7 @@ pub fn decode(mut buf: Cursor<&[u8]>, width: u32, height: u32) -> std::io::Resul
             let g = (g as u16 * 255 / 7) as u8;
             let b = (b as u16 * 255 / 3) as u8;
 
-            img.put_pixel(x, y, Rgba([r, g, b, 255]));
+            img.put_pixel(x, y, Rgb([r, g, b]));
         }
     }
 

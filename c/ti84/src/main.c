@@ -1,7 +1,6 @@
 #include <debug.h>
 #include <graphx.h>
 #include <keypadc.h>
-#include <msgpack.h>
 #include <srldrvce.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -32,12 +31,6 @@ char *read() {
 }
 
 int main(void) {
-    msgpack_sbuffer sbuf;
-    msgpack_sbuffer_init(&sbuf);
-
-    msgpack_packer pk;
-    msgpack_packer_init(&pk, &sbuf, msgpack_sbuffer_write);
-
     os_ClrHome();
     os_SetCursorPos(0, 0);
     os_PutStrFull("geoterm ti84: initializing...");
@@ -65,6 +58,5 @@ int main(void) {
     } while (!kb_IsDown(kb_KeyClear));
 
     usb_Cleanup();
-    msgpack_sbuffer_destroy(&sbuf);
     return 0;
 }

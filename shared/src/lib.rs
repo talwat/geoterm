@@ -13,7 +13,7 @@ pub type Reader = FramedRead<OwnedReadHalf, LengthDelimitedCodec>;
 
 pub mod image;
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
-pub struct Round {
+pub struct RoundData {
     pub number: usize,
     pub answer: (f32, f32),
     pub players: Vec<Player>,
@@ -21,7 +21,7 @@ pub struct Round {
 
 use std::ops::Index;
 
-impl Index<usize> for Round {
+impl Index<usize> for RoundData {
     type Output = Player;
 
     fn index(&self, index: usize) -> &Self::Output {
@@ -32,7 +32,7 @@ impl Index<usize> for Round {
     }
 }
 
-impl IndexMut<usize> for Round {
+impl IndexMut<usize> for RoundData {
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
         self.players
             .iter_mut()
@@ -74,16 +74,16 @@ pub struct ClientOptions {
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone, Copy)]
-pub struct Player {
-    pub guess: Option<(f32, f32)>,
-    pub points: u64,
-    pub id: usize,
+pub struct Coordinate {
+    pub lon: f32,
+    pub lat: f32,
 }
 
-#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
-pub struct Text {
-    pub street: String,
-    pub additional: Vec<((usize, usize), String)>,
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone, Copy)]
+pub struct Player {
+    pub guess: Option<Coordinate>,
+    pub points: u64,
+    pub id: usize,
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
@@ -111,17 +111,17 @@ pub enum Packet {
     },
     Round {
         number: usize,
-        text: Text,
-        images: [Vec<u8>; 3],
+        #[serde(with = "serde_bytes")]
+        image: Vec<u8>,
     },
     Guess {
-        coordinates: (f32, f32),
+        coordinates: Coordinate,
     },
     Guessed {
         player: usize,
     },
     Result {
-        round: Round,
+        round: RoundData,
     },
     ReturnToLobby,
 }
@@ -166,6 +166,10 @@ impl PacketReadExt for Reader {
 impl PacketWriteExt for Writer {
     async fn write(&mut self, packet: &Packet) -> Result<(), Error> {
         let bytes = rmp_serde::to_vec(packet)?;
+
+        if bytes.len() < 128 {
+            eprintln!("sending: {0:x?}", bytes);
+        }
         self.send(bytes.into()).await?;
 
         Ok(())

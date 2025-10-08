@@ -1,0 +1,3 @@
+[submodule "c/cmp"]
+	path = c/cmp
+	url = https://github.com/camgunz/cmp

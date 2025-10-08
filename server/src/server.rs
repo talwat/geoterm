@@ -4,7 +4,7 @@ use std::{
 };
 
 use futures::future::join_all;
-use shared::{LobbyAction, LobbyClient, Packet, Round};
+use shared::{LobbyAction, LobbyClient, Packet, RoundData};
 use tokio::{
     io::AsyncWriteExt,
     net::{TcpListener, TcpStream},
@@ -17,8 +17,8 @@ use crate::{Message, client::Client, error::Error, lobby, round};
 #[derive(Debug, PartialEq)]
 pub enum State {
     Lobby,
-    Round(Round),
-    Results(Round),
+    Round(RoundData),
+    Results(RoundData),
 }
 
 pub struct Server {

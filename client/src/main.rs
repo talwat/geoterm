@@ -3,6 +3,7 @@ use std::io::Cursor;
 use crossterm::event::KeyCode;
 use shared::{
     ClientOptions, FramedSplitExt, LobbyAction, LobbyClient, Packet, PacketReadExt, PacketWriteExt,
+    image::decode,
 };
 use tokio::{
     net::{
@@ -147,22 +148,10 @@ async fn main() -> eyre::Result<()> {
                 },
                 State::Loading => match message {
                     Message::Packet(packet) => match packet {
-                        Packet::Round {
-                            number,
-                            text,
-                            images,
-                        } => {
+                        Packet::Round { number, image } => {
                             state = State::Round(round::Round {
-                                images: images.map(|x| {
-                                    image::ImageReader::new(Cursor::new(x))
-                                        .with_guessed_format()
-                                        .unwrap()
-                                        .decode()
-                                        .unwrap()
-                                        .to_rgb8()
-                                }),
+                                image: decode(Cursor::new(&image), 320, 240)?,
                                 cursor: (0.0, 0.0),
-                                street: text.street,
                                 guessed: false,
                                 guessing: false,
                                 number,
@@ -181,7 +170,10 @@ async fn main() -> eyre::Result<()> {
                                 client
                                     .writer
                                     .write(&Packet::Guess {
-                                        coordinates: round.cursor,
+                                        coordinates: shared::Coordinate {
+                                            lon: round.cursor.0,
+                                            lat: round.cursor.1,
+                                        },
                                     })
                                     .await?;
                             }

@@ -11,7 +11,7 @@ use ratatui::{
 use shared::LobbyClient;
 
 pub struct Results {
-    pub data: shared::Round,
+    pub data: shared::RoundData,
     pub lobby: Vec<LobbyClient>,
 }
 
@@ -51,8 +51,8 @@ impl Widget for &Results {
                     let guess = player.guess.unwrap();
 
                     ctx.draw(&Circle {
-                        x: guess.0 as f64,
-                        y: guess.1 as f64,
+                        x: guess.lon as f64,
+                        y: guess.lat as f64,
                         radius: 4.0,
                         color: convert_color(options.color),
                     });

@@ -8,11 +8,12 @@ geoterm is, first and foremost, geoguessr: calculator edition. That's pretty muc
 As a secondary goal, there should also be a rudimentary terminal client that can be used
 to play on PC.
 
-## Plans
+## Plans/Specifics
 
-* Varied levels of image quality for different devices.
-* Simple 2x zoom functionality (again to accomodate low resolution).
 * OCR in multiple languages to accompany lower quality image data.
+* 4-bit color at 320x240 for the calculator screen.
+* Black & white guesser window with simple world map.
+* Potentially dumping raw C struct data & using microcontroller to translate into msgpack?
 
 ## Communication Protocol Details
 

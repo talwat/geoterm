@@ -5,14 +5,13 @@ use ratatui::{
     style::Color,
     symbols,
     widgets::{
-        Block, Paragraph, Widget,
+        Block, Widget,
         canvas::{self, Canvas, Context, Map},
     },
 };
 
 pub struct Round {
-    pub images: [RgbImage; 3],
-    pub street: String,
+    pub image: RgbImage,
     pub number: usize,
     pub guessed: bool,
     pub guessing: bool,
@@ -33,7 +32,7 @@ impl Round {
     }
 
     fn draw_image(&self, ctx: &mut Context<'_>, height: f64) {
-        let points = self.images[1].enumerate_pixels().map(|(x, y, p)| {
+        let points = self.image.enumerate_pixels().map(|(x, y, p)| {
             let [r, g, b] = p.0;
             let color = Color::Rgb(r, g, b);
             let y = height - y as f64;
@@ -51,7 +50,7 @@ impl Round {
 
 impl Widget for &Round {
     fn render(self, area: Rect, buf: &mut Buffer) {
-        let image = &self.images[1];
+        let image = &self.image;
 
         let layout = Layout::new(
             ratatui::layout::Direction::Vertical,
@@ -65,12 +64,6 @@ impl Widget for &Round {
             .title(format!(" Round {} ", self.number))
             .title_alignment(Alignment::Center)
             .render(area, buf);
-
-        Paragraph::new("(insert timer)").render(layout[0], buf);
-
-        Paragraph::new(self.street.clone())
-            .alignment(Alignment::Right)
-            .render(layout[0], buf);
 
         let (width, height) = image.dimensions();
         let (width, height) = (width as f64, height as f64);
