@@ -1,15 +1,10 @@
 use std::{ops::IndexMut, str::Utf8Error};
 
-use bytes::{Buf, BufMut, Bytes, BytesMut};
-use futures::StreamExt;
-use tokio::net::{
-    TcpStream,
-    tcp::{OwnedReadHalf, OwnedWriteHalf},
-};
-use tokio_util::codec::{Decoder, Encoder, FramedRead, FramedWrite};
+use bytes::Bytes;
+use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
 
-pub type Writer = FramedWrite<OwnedWriteHalf, PacketCodec>;
-pub type Reader = FramedRead<OwnedReadHalf, PacketCodec>;
+pub type Writer = OwnedWriteHalf;
+pub type Reader = OwnedReadHalf;
 
 pub mod deserializers;
 pub mod image;
@@ -152,59 +147,23 @@ pub enum Error {
     Unknown(u8),
 }
 
-#[derive(Clone)]
-pub struct PacketCodec;
-
-impl Decoder for PacketCodec {
-    type Item = Packet;
-    type Error = Error;
-
-    fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Packet>, Error> {
-        if src.is_empty() {
-            return Ok(None);
-        }
-
-        let packet = Packet::deserialize(&mut src.reader())?;
-        Ok(Some(packet))
-    }
+pub trait PacketReadExt {
+    fn read_packet(&mut self) -> impl Future<Output = Result<Packet, Error>> + Send;
 }
 
-impl Encoder<Packet> for PacketCodec {
-    type Error = Error;
+pub trait PacketWriteExt {
+    fn write_packet(&mut self, packet: Packet) -> impl Future<Output = Result<(), Error>> + Send;
+}
 
-    fn encode(&mut self, packet: Packet, dst: &mut BytesMut) -> Result<(), Error> {
-        packet.serialize(&mut dst.writer())?;
+impl PacketWriteExt for Writer {
+    async fn write_packet(&mut self, packet: Packet) -> Result<(), Error> {
+        packet.serialize(self).await?;
         Ok(())
     }
 }
 
-pub trait PacketReadExt {
-    fn read(&mut self) -> impl Future<Output = Result<Packet, Error>> + Send;
-}
-
 impl PacketReadExt for Reader {
-    async fn read(&mut self) -> Result<Packet, Error> {
-        match self.next().await {
-            Some(Ok(packet)) => Ok(packet),
-            Some(Err(e)) => Err(e),
-            None => Err(Error::Close),
-        }
-    }
-}
-pub trait FramedSplitExt {
-    fn framed_split(self) -> (Reader, Writer);
-}
-
-impl FramedSplitExt for TcpStream {
-    fn framed_split(self) -> (Reader, Writer) {
-        let (reader, writer) = self.into_split();
-
-        let read = PacketCodec;
-        let write = PacketCodec;
-
-        let reader = FramedRead::new(reader, read);
-        let writer = FramedWrite::new(writer, write);
-
-        (reader, writer)
+    async fn read_packet(&mut self) -> Result<Packet, Error> {
+        Packet::deserialize(self).await
     }
 }

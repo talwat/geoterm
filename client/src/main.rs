@@ -1,10 +1,7 @@
-use std::{io::Cursor, process::exit};
-
 use crossterm::event::KeyCode;
-use futures::SinkExt;
-use image::RgbImage;
 use shared::{
-    ClientOptions, FramedSplitExt, Packet, PacketReadExt, Reader, Writer, image::decode,
+    ClientOptions, Packet, PacketReadExt, PacketWriteExt, Reader, Writer,
+    image::{HEIGHT, WIDTH, decode},
     lobby::Clients,
 };
 use tokio::{
@@ -39,7 +36,7 @@ struct Client {
 
 impl Client {
     pub async fn listener(mut reader: Reader, tx: Sender<Message>) -> eyre::Result<()> {
-        while let Ok(packet) = reader.read().await {
+        while let Ok(packet) = reader.read_packet().await {
             tx.send(Message::Packet(packet)).await?;
         }
 
@@ -49,15 +46,15 @@ impl Client {
     pub async fn new(options: ClientOptions) -> eyre::Result<(Self, Clients)> {
         let (tx, rx) = mpsc::channel(8);
         let stream = TcpStream::connect("127.0.0.1:4000").await?;
-        let (mut reader, mut writer) = stream.framed_split();
+        let (mut reader, mut writer) = stream.into_split();
 
         writer
-            .send(Packet::Init {
+            .write_packet(Packet::Init {
                 options: options.clone(),
             })
             .await?;
 
-        let (id, .., lobby) = match reader.read().await? {
+        let (id, .., lobby) = match reader.read_packet().await? {
             Packet::Confirmed { id, options, lobby } => (id, options, lobby),
             other => return Err(shared::Error::Illegal(other).into()),
         };
@@ -97,7 +94,7 @@ async fn main() -> eyre::Result<()> {
     };
 
     let (mut client, lobby) = Client::new(options).await?;
-    // let mut terminal = ratatui::init();
+    let mut terminal = ratatui::init();
     let mut state = State::Lobby(lobby::Lobby {
         id: client.id,
         ready: client.ready,
@@ -106,7 +103,7 @@ async fn main() -> eyre::Result<()> {
     });
 
     let mut ui = UI::init(client.tx.clone());
-    // ui.render(&mut terminal, &state)?;
+    ui.render(&mut terminal, &state)?;
 
     let mut players: Clients = lobby;
 
@@ -117,7 +114,7 @@ async fn main() -> eyre::Result<()> {
             }
 
             if message == Message::Resize {
-                // ui.render(&mut terminal, &state)?;
+                ui.render(&mut terminal, &state)?;
                 continue;
             }
 
@@ -127,7 +124,7 @@ async fn main() -> eyre::Result<()> {
                         lobby_state.ready = !lobby_state.ready;
                         client
                             .writer
-                            .send(Packet::WaitingStatus {
+                            .write_packet(Packet::WaitingStatus {
                                 ready: lobby_state.ready,
                             })
                             .await?;
@@ -147,7 +144,7 @@ async fn main() -> eyre::Result<()> {
                         Packet::Round { number, image } => {
                             state = State::Round(round::Round {
                                 image_len: image.len(),
-                                image: decode(&mut image.reader(), 320, 240)?,
+                                image: decode(&mut image.reader(), WIDTH, HEIGHT)?,
                                 cursor: (0.0, 0.0),
                                 guessed: false,
                                 guessing: false,
@@ -166,7 +163,7 @@ async fn main() -> eyre::Result<()> {
                                 round.guessed = true;
                                 client
                                     .writer
-                                    .send(Packet::Guess {
+                                    .write_packet(Packet::Guess {
                                         coordinates: shared::Coordinate {
                                             longitude: round.cursor.0,
                                             latitude: round.cursor.1,
@@ -215,7 +212,7 @@ async fn main() -> eyre::Result<()> {
                 },
             }
 
-            // ui.render(&mut terminal, &state)?;
+            ui.render(&mut terminal, &state)?;
         }
     }
 

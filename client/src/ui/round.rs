@@ -1,5 +1,3 @@
-use std::io::Read;
-
 use image::RgbImage;
 use ratatui::{
     buffer::Buffer,

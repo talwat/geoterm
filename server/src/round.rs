@@ -48,10 +48,6 @@ pub async fn new(server: &mut Server, old: Option<&RoundData>) -> Result<State, 
             None,
         )
         .await;
-    eprintln!(
-        "server: sent {} bytes of image data to players",
-        bytes[1].len()
-    );
 
     eprintln!("server: starting round {number}");
     Ok(State::Round(RoundData {

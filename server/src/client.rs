@@ -1,5 +1,4 @@
-use futures::SinkExt;
-use shared::{ClientOptions, FramedSplitExt, Packet, PacketReadExt, Reader, Writer};
+use shared::{ClientOptions, Packet, PacketReadExt, PacketWriteExt, Reader, Writer};
 use tokio::{io::AsyncWriteExt, net::TcpStream, sync::mpsc, task::JoinHandle};
 
 use crate::{Error, Message};
@@ -22,7 +21,7 @@ impl Client {
         mut reader: Reader,
     ) -> Result<(), Error> {
         loop {
-            let packet = reader.read().await;
+            let packet = reader.read_packet().await;
             let is_err = packet.is_err();
             tx.send(Message::Packet(id, packet)).await?;
 
@@ -35,7 +34,7 @@ impl Client {
     }
 
     pub async fn write(&mut self, packet: Packet) -> Result<(), Error> {
-        self.writer.send(packet).await?;
+        self.writer.write_packet(packet).await?;
         self.writer.flush().await?;
         Ok(())
     }
@@ -45,7 +44,7 @@ impl Client {
         tx: mpsc::Sender<Message>,
         socket: TcpStream,
     ) -> Result<Self, Error> {
-        let (reader, writer) = socket.framed_split();
+        let (reader, writer) = socket.into_split();
         let handle = tokio::spawn(Self::listener(id, tx.clone(), reader));
 
         Ok(Self {
@@ -58,9 +57,9 @@ impl Client {
         })
     }
 
-    pub async fn close(self) {
+    pub async fn close(mut self) {
         self.handle.abort();
-        let _ = self.writer.into_inner().shutdown().await;
+        let _ = tokio::io::AsyncWriteExt::shutdown(&mut self.writer).await;
         eprintln!("server (client {}): closed", self.id);
     }
 }

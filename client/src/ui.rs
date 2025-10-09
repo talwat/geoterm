@@ -47,7 +47,7 @@ impl UI {
     }
 
     pub fn render(&mut self, terminal: &mut DefaultTerminal, state: &State) -> eyre::Result<()> {
-        // terminal.draw(|frame| self.draw(frame, state))?;
+        terminal.draw(|frame| self.draw(frame, state))?;
         Ok(())
     }
 

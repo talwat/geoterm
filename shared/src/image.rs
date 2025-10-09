@@ -2,10 +2,14 @@ use byteorder::ReadBytesExt;
 use image::{Pixel, Rgb, RgbImage};
 use std::io::{Read, Write};
 
+pub const WIDTH: u32 = 320;
+pub const HEIGHT: u32 = 240;
+pub const SIZE: u32 = 320 * 240;
+
 pub fn encode<W: Write>(image: RgbImage, writer: &mut W) -> std::io::Result<()> {
     let (width, height) = image.dimensions();
-    assert!(width % 320 == 0, "width is incorrect!");
-    assert!(height % 240 == 0, "height is incorrect!");
+    assert!(width % WIDTH == 0, "width is incorrect!");
+    assert!(height % HEIGHT == 0, "height is incorrect!");
 
     for pixel in image.pixels() {
         let [r, g, b] = pixel.channels() else {
@@ -24,8 +28,8 @@ pub fn encode<W: Write>(image: RgbImage, writer: &mut W) -> std::io::Result<()> 
 }
 
 pub fn decode<R: Read>(reader: &mut R, width: u32, height: u32) -> std::io::Result<RgbImage> {
-    assert!(width % 320 == 0, "width is incorrect!");
-    assert!(height % 240 == 0, "height is incorrect!");
+    assert!(width % WIDTH == 0, "width is incorrect!");
+    assert!(height % HEIGHT == 0, "height is incorrect!");
 
     let mut img = RgbImage::new(width, height);
 

@@ -1,7 +1,6 @@
-use std::io::Write;
+use tokio::io::AsyncWriteExt;
 
-use crate::{ClientOptions, Coordinate, Error, Packet, Player, RoundData, lobby};
-use byteorder::{BigEndian, WriteBytesExt};
+use crate::{ClientOptions, Coordinate, Error, Packet, Player, RoundData, Writer, lobby};
 
 trait ToFixed<const LEN: usize> {
     fn fixed(&self) -> [u8; LEN];
@@ -19,35 +18,38 @@ impl<const LEN: usize> ToFixed<LEN> for String {
 }
 
 pub trait Serialize {
-    fn serialize<W: Write>(&self, writer: &mut W) -> Result<(), Error>;
+    fn serialize(
+        &self,
+        writer: &mut Writer,
+    ) -> impl std::future::Future<Output = Result<(), Error>> + Send;
 }
 
 impl Serialize for ClientOptions {
-    fn serialize<W: Write>(&self, writer: &mut W) -> Result<(), Error> {
-        writer.write_u8(self.color as u8)?;
+    async fn serialize(&self, writer: &mut Writer) -> Result<(), Error> {
+        writer.write_u8(self.color as u8).await?;
 
         let user: [u8; 16] = self.user.fixed();
-        writer.write_all(&user)?;
+        writer.write_all(&user).await?;
 
         Ok(())
     }
 }
 
 impl Serialize for lobby::Client {
-    fn serialize<W: Write>(&self, writer: &mut W) -> Result<(), Error> {
-        writer.write_u32::<BigEndian>(self.id as u32)?;
-        writer.write_u8(self.ready as u8)?;
-        self.options.serialize(writer)?;
+    async fn serialize(&self, writer: &mut Writer) -> Result<(), Error> {
+        writer.write_u32(self.id as u32).await?;
+        writer.write_u8(self.ready as u8).await?;
+        self.options.serialize(writer).await?;
 
         Ok(())
     }
 }
 
 impl Serialize for lobby::Clients {
-    fn serialize<W: Write>(&self, writer: &mut W) -> Result<(), Error> {
-        writer.write_u32::<BigEndian>(self.len() as u32)?;
+    async fn serialize(&self, writer: &mut Writer) -> Result<(), Error> {
+        writer.write_u32(self.len() as u32).await?;
         for client in self {
-            client.serialize(writer)?;
+            client.serialize(writer).await?;
         }
 
         Ok(())
@@ -55,24 +57,24 @@ impl Serialize for lobby::Clients {
 }
 
 impl Serialize for Coordinate {
-    fn serialize<W: Write>(&self, writer: &mut W) -> Result<(), Error> {
-        writer.write_f32::<BigEndian>(self.latitude)?;
-        writer.write_f32::<BigEndian>(self.longitude)?;
+    async fn serialize(&self, writer: &mut Writer) -> Result<(), Error> {
+        writer.write_f32(self.latitude).await?;
+        writer.write_f32(self.longitude).await?;
 
         Ok(())
     }
 }
 
 impl Serialize for Player {
-    fn serialize<W: Write>(&self, writer: &mut W) -> Result<(), Error> {
-        writer.write_u32::<BigEndian>(self.id as u32)?;
-        writer.write_u32::<BigEndian>(self.points as u32)?;
+    async fn serialize(&self, writer: &mut Writer) -> Result<(), Error> {
+        writer.write_u32(self.id as u32).await?;
+        writer.write_u32(self.points as u32).await?;
 
-        writer.write_u8(self.guess.is_some() as u8)?;
+        writer.write_u8(self.guess.is_some() as u8).await?;
         if let Some(guess) = self.guess {
-            guess.serialize(writer)?;
+            guess.serialize(writer).await?;
         } else {
-            writer.write(&[0; 2])?;
+            writer.write(&[0; 2]).await?;
         }
 
         Ok(())
@@ -80,13 +82,13 @@ impl Serialize for Player {
 }
 
 impl Serialize for RoundData {
-    fn serialize<W: Write>(&self, writer: &mut W) -> Result<(), Error> {
-        writer.write_u32::<BigEndian>(self.number as u32)?;
-        self.answer.serialize(writer)?;
+    async fn serialize(&self, writer: &mut Writer) -> Result<(), Error> {
+        writer.write_u32(self.number as u32).await?;
+        self.answer.serialize(writer).await?;
 
-        writer.write_u32::<BigEndian>(self.players.len() as u32)?;
+        writer.write_u32(self.players.len() as u32).await?;
         for player in &self.players {
-            player.serialize(writer)?;
+            player.serialize(writer).await?;
         }
 
         Ok(())
@@ -94,45 +96,45 @@ impl Serialize for RoundData {
 }
 
 impl Serialize for Packet {
-    fn serialize<W: Write>(&self, writer: &mut W) -> Result<(), Error> {
+    async fn serialize(&self, writer: &mut Writer) -> Result<(), Error> {
         let id = self.id();
-        writer.write_u8(id)?;
+        writer.write_u8(id).await?;
 
         match self {
-            Packet::Init { options } => options.serialize(writer)?,
+            Packet::Init { options } => options.serialize(writer).await?,
             Packet::Confirmed { id, options, lobby } => {
-                writer.write_u32::<BigEndian>(*id as u32)?;
-                options.serialize(writer)?;
-                lobby.serialize(writer)?;
+                writer.write_u32(*id as u32).await?;
+                options.serialize(writer).await?;
+                lobby.serialize(writer).await?;
             }
             Packet::LobbyEvent {
                 action,
                 user,
                 lobby,
             } => {
-                writer.write_u8(*action as u8)?;
-                writer.write_u32::<BigEndian>(*user as u32)?;
-                lobby.serialize(writer)?;
+                writer.write_u8(*action as u8).await?;
+                writer.write_u32(*user as u32).await?;
+                lobby.serialize(writer).await?;
             }
             Packet::WaitingStatus { ready } => {
-                writer.write_u8(*ready as u8)?;
+                writer.write_u8(*ready as u8).await?;
             }
             Packet::RoundLoading { lobby } => {
-                lobby.serialize(writer)?;
+                lobby.serialize(writer).await?;
             }
             Packet::Round { number, image } => {
-                writer.write_u32::<BigEndian>(*number as u32)?;
-                writer.write_u32::<BigEndian>(image.len() as u32)?;
-                writer.write_all(image)?;
+                writer.write_u32(*number as u32).await?;
+                writer.write_u32(image.len() as u32).await?;
+                writer.write_all(image).await?;
             }
             Packet::Guess { coordinates } => {
-                coordinates.serialize(writer)?;
+                coordinates.serialize(writer).await?;
             }
             Packet::Guessed { player } => {
-                writer.write_u32::<BigEndian>(*player as u32)?;
+                writer.write_u32(*player as u32).await?;
             }
             Packet::Result { round } => {
-                round.serialize(writer)?;
+                round.serialize(writer).await?;
             }
             Packet::ReturnToLobby => {}
         }
