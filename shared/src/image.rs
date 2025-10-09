@@ -1,13 +1,14 @@
-use image::{Pixel, Rgb, RgbImage, RgbaImage};
-use std::io::{Cursor, Read, Write};
+use byteorder::ReadBytesExt;
+use image::{Pixel, Rgb, RgbImage};
+use std::io::{Read, Write};
 
-pub fn encode(image: RgbaImage, mut buf: Cursor<&mut [u8]>) -> std::io::Result<()> {
+pub fn encode<W: Write>(image: RgbImage, writer: &mut W) -> std::io::Result<()> {
     let (width, height) = image.dimensions();
     assert!(width % 320 == 0, "width is incorrect!");
     assert!(height % 240 == 0, "height is incorrect!");
 
     for pixel in image.pixels() {
-        let [r, g, b, _a] = pixel.channels() else {
+        let [r, g, b] = pixel.channels() else {
             panic!("channels don't match up!")
         };
 
@@ -16,23 +17,23 @@ pub fn encode(image: RgbaImage, mut buf: Cursor<&mut [u8]>) -> std::io::Result<(
         let b = (*b >> 6) & 0x03;
 
         let combined = (r << 5) | (g << 2) | b;
-        buf.write_all(&[combined])?;
+        writer.write_all(&[combined])?;
     }
 
     Ok(())
 }
 
-pub fn decode(mut buf: Cursor<&[u8]>, width: u32, height: u32) -> std::io::Result<RgbImage> {
+pub fn decode<R: Read>(reader: &mut R, width: u32, height: u32) -> std::io::Result<RgbImage> {
     assert!(width % 320 == 0, "width is incorrect!");
     assert!(height % 240 == 0, "height is incorrect!");
 
     let mut img = RgbImage::new(width, height);
 
-    for y in 0..height {
+    'main: for y in 0..height {
         for x in 0..width {
-            let mut byte = [0u8; 1];
-            buf.read_exact(&mut byte)?;
-            let combined = byte[0];
+            let Ok(combined) = reader.read_u8() else {
+                break 'main;
+            };
 
             let r = (combined >> 5) & 0x07;
             let g = (combined >> 2) & 0x07;

@@ -8,11 +8,11 @@ use ratatui::{
         canvas::{self, Canvas, Circle, Map},
     },
 };
-use shared::LobbyClient;
+use shared::lobby::Clients;
 
 pub struct Results {
     pub data: shared::RoundData,
-    pub lobby: Vec<LobbyClient>,
+    pub lobby: Clients,
 }
 
 fn convert_color(c: shared::Color) -> Color {
@@ -44,15 +44,15 @@ impl Widget for &Results {
                 for player in &self.data.players {
                     let options = &self
                         .lobby
-                        .iter()
+                        .into_iter()
                         .find(|x| x.id == player.id)
                         .unwrap()
                         .options;
                     let guess = player.guess.unwrap();
 
                     ctx.draw(&Circle {
-                        x: guess.lon as f64,
-                        y: guess.lat as f64,
+                        x: guess.longitude as f64,
+                        y: guess.latitude as f64,
                         radius: 4.0,
                         color: convert_color(options.color),
                     });

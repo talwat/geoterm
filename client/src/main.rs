@@ -1,19 +1,18 @@
-use std::io::Cursor;
+use std::{io::Cursor, process::exit};
 
 use crossterm::event::KeyCode;
+use futures::SinkExt;
+use image::RgbImage;
 use shared::{
-    ClientOptions, FramedSplitExt, LobbyAction, LobbyClient, Packet, PacketReadExt, PacketWriteExt,
-    image::decode,
+    ClientOptions, FramedSplitExt, Packet, PacketReadExt, Reader, Writer, image::decode,
+    lobby::Clients,
 };
 use tokio::{
-    net::{
-        TcpStream,
-        tcp::{OwnedReadHalf, OwnedWriteHalf},
-    },
+    net::TcpStream,
     sync::mpsc::{self, Receiver, Sender},
     task::JoinHandle,
 };
-use tokio_util::codec::{FramedRead, FramedWrite, LengthDelimitedCodec};
+use tokio_util::bytes::Buf;
 
 use crate::ui::{UI, lobby, results, round};
 
@@ -32,17 +31,14 @@ struct Client {
     ready: bool,
     id: usize,
     options: ClientOptions,
-    writer: FramedWrite<OwnedWriteHalf, LengthDelimitedCodec>,
+    writer: Writer,
     rx: Receiver<Message>,
     tx: Sender<Message>,
     handle: JoinHandle<eyre::Result<()>>,
 }
 
 impl Client {
-    pub async fn listener(
-        mut reader: FramedRead<OwnedReadHalf, LengthDelimitedCodec>,
-        tx: Sender<Message>,
-    ) -> eyre::Result<()> {
+    pub async fn listener(mut reader: Reader, tx: Sender<Message>) -> eyre::Result<()> {
         while let Ok(packet) = reader.read().await {
             tx.send(Message::Packet(packet)).await?;
         }
@@ -50,13 +46,13 @@ impl Client {
         Ok(())
     }
 
-    pub async fn new(options: ClientOptions) -> eyre::Result<(Self, Vec<LobbyClient>)> {
+    pub async fn new(options: ClientOptions) -> eyre::Result<(Self, Clients)> {
         let (tx, rx) = mpsc::channel(8);
         let stream = TcpStream::connect("127.0.0.1:4000").await?;
         let (mut reader, mut writer) = stream.framed_split();
 
         writer
-            .write(&Packet::Init {
+            .send(Packet::Init {
                 options: options.clone(),
             })
             .await?;
@@ -101,7 +97,7 @@ async fn main() -> eyre::Result<()> {
     };
 
     let (mut client, lobby) = Client::new(options).await?;
-    let mut terminal = ratatui::init();
+    // let mut terminal = ratatui::init();
     let mut state = State::Lobby(lobby::Lobby {
         id: client.id,
         ready: client.ready,
@@ -110,9 +106,9 @@ async fn main() -> eyre::Result<()> {
     });
 
     let mut ui = UI::init(client.tx.clone());
-    ui.render(&mut terminal, &state)?;
+    // ui.render(&mut terminal, &state)?;
 
-    let mut players: Vec<LobbyClient> = lobby;
+    let mut players: Clients = lobby;
 
     'main: loop {
         while let Some(message) = client.rx.recv().await {
@@ -121,7 +117,7 @@ async fn main() -> eyre::Result<()> {
             }
 
             if message == Message::Resize {
-                ui.render(&mut terminal, &state)?;
+                // ui.render(&mut terminal, &state)?;
                 continue;
             }
 
@@ -131,7 +127,7 @@ async fn main() -> eyre::Result<()> {
                         lobby_state.ready = !lobby_state.ready;
                         client
                             .writer
-                            .write(&Packet::WaitingStatus {
+                            .send(Packet::WaitingStatus {
                                 ready: lobby_state.ready,
                             })
                             .await?;
@@ -150,7 +146,8 @@ async fn main() -> eyre::Result<()> {
                     Message::Packet(packet) => match packet {
                         Packet::Round { number, image } => {
                             state = State::Round(round::Round {
-                                image: decode(Cursor::new(&image), 320, 240)?,
+                                image_len: image.len(),
+                                image: decode(&mut image.reader(), 320, 240)?,
                                 cursor: (0.0, 0.0),
                                 guessed: false,
                                 guessing: false,
@@ -169,10 +166,10 @@ async fn main() -> eyre::Result<()> {
                                 round.guessed = true;
                                 client
                                     .writer
-                                    .write(&Packet::Guess {
+                                    .send(Packet::Guess {
                                         coordinates: shared::Coordinate {
-                                            lon: round.cursor.0,
-                                            lat: round.cursor.1,
+                                            longitude: round.cursor.0,
+                                            latitude: round.cursor.1,
                                         },
                                     })
                                     .await?;
@@ -191,7 +188,7 @@ async fn main() -> eyre::Result<()> {
                             user: _,
                             lobby,
                         } => {
-                            if action == LobbyAction::Return {
+                            if action == shared::lobby::Action::Return {
                                 state = State::Lobby(lobby::Lobby {
                                     clients: lobby,
                                     username: client.options.user.clone(),
@@ -218,7 +215,7 @@ async fn main() -> eyre::Result<()> {
                 },
             }
 
-            ui.render(&mut terminal, &state)?;
+            // ui.render(&mut terminal, &state)?;
         }
     }
 

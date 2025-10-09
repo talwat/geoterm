@@ -1,3 +1,5 @@
+use std::io::Read;
+
 use image::RgbImage;
 use ratatui::{
     buffer::Buffer,
@@ -5,13 +7,14 @@ use ratatui::{
     style::Color,
     symbols,
     widgets::{
-        Block, Widget,
+        Block, Paragraph, Widget,
         canvas::{self, Canvas, Context, Map},
     },
 };
 
 pub struct Round {
     pub image: RgbImage,
+    pub image_len: usize,
     pub number: usize,
     pub guessed: bool,
     pub guessing: bool,
@@ -67,6 +70,8 @@ impl Widget for &Round {
 
         let (width, height) = image.dimensions();
         let (width, height) = (width as f64, height as f64);
+
+        Paragraph::new(format!("img size: {}", self.image_len)).render(layout[0], buf);
 
         Canvas::default()
             .marker(symbols::Marker::HalfBlock)

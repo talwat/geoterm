@@ -4,7 +4,7 @@ use std::{
 };
 
 use futures::future::join_all;
-use shared::{LobbyAction, LobbyClient, Packet, RoundData};
+use shared::{Packet, RoundData};
 use tokio::{
     io::AsyncWriteExt,
     net::{TcpListener, TcpStream},
@@ -79,7 +79,8 @@ impl Server {
 
     pub async fn return_to_lobby(&mut self, id: usize) {
         self.state = State::Lobby;
-        self.broadcast_lobby(id, LobbyAction::Return).await;
+        self.broadcast_lobby(id, shared::lobby::Action::Return)
+            .await;
     }
 
     pub async fn kick(&mut self, client: usize, error: shared::Error) {
@@ -89,7 +90,8 @@ impl Server {
         };
 
         if self.state == State::Lobby {
-            self.broadcast_lobby(client, LobbyAction::Leave).await;
+            self.broadcast_lobby(client, shared::lobby::Action::Leave)
+                .await;
         } else if self.clients.iter().filter(|x| x.options.is_some()).count() < 2 {
             eprintln!("server: not enough players, returning to lobby...");
             self.return_to_lobby(client).await;
@@ -101,7 +103,7 @@ impl Server {
             .clients
             .iter_mut()
             .filter(|client| client.options.is_some() && !exclude.is_some_and(|x| client.id == x))
-            .map(|client| client.write(packet));
+            .map(|client| client.write(packet.clone()));
 
         join_all(futures).await;
     }
@@ -111,20 +113,23 @@ impl Server {
         ready >= 2 && ready == self.clients.len()
     }
 
-    pub async fn lobby(&mut self) -> Vec<LobbyClient> {
-        self.clients
+    pub async fn lobby(&mut self) -> shared::lobby::Clients {
+        let inner: Vec<_> = self
+            .clients
             .iter()
             .filter_map(|x| {
-                Some(LobbyClient {
+                Some(shared::lobby::Client {
                     id: x.id,
                     ready: x.ready,
                     options: x.options.clone()?,
                 })
             })
-            .collect()
+            .collect();
+
+        shared::lobby::Clients::from(inner)
     }
 
-    pub async fn broadcast_lobby(&mut self, id: usize, action: LobbyAction) {
+    pub async fn broadcast_lobby(&mut self, id: usize, action: shared::lobby::Action) {
         let clients = self.lobby().await;
         self.broadcast(
             &Packet::LobbyEvent {

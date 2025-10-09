@@ -5,13 +5,13 @@ use ratatui::{
     text::{Line, Span},
     widgets::{Block, Paragraph, Widget},
 };
-use shared::LobbyClient;
+use shared::lobby::Clients;
 
 use crate::ui::center;
 
 #[derive(Debug, Default)]
 pub struct Lobby {
-    pub clients: Vec<LobbyClient>,
+    pub clients: Clients,
     pub username: String,
     pub ready: bool,
     pub id: usize,
@@ -31,7 +31,7 @@ impl Widget for &Lobby {
 
         let text: Vec<Line> = self
             .clients
-            .iter()
+            .into_iter()
             .map(|x| {
                 let you = x.id == self.id;
                 let style = Style::new();

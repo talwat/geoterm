@@ -43,12 +43,15 @@ pub async fn new(server: &mut Server, old: Option<&RoundData>) -> Result<State, 
         .broadcast(
             &shared::Packet::Round {
                 number,
-                image: bytes[1].clone().to_vec(),
+                image: bytes[1].clone(),
             },
             None,
         )
         .await;
-    eprintln!("server: sent data to players");
+    eprintln!(
+        "server: sent {} bytes of image data to players",
+        bytes[1].len()
+    );
 
     eprintln!("server: starting round {number}");
     Ok(State::Round(RoundData {
@@ -59,12 +62,15 @@ pub async fn new(server: &mut Server, old: Option<&RoundData>) -> Result<State, 
 }
 
 pub fn results(round: &mut RoundData) {
-    let answer = Location::new(round.answer.0, round.answer.1);
+    let answer = Location::new(round.answer.latitude, round.answer.longitude);
 
     for player in &mut round.players {
-        let distance = Location::new(player.guess.unwrap().lon, player.guess.unwrap().lat)
-            .haversine_distance_to(&answer)
-            .meters();
+        let distance = Location::new(
+            player.guess.unwrap().longitude,
+            player.guess.unwrap().latitude,
+        )
+        .haversine_distance_to(&answer)
+        .meters();
         const SIGMA: f64 = 3000.0 * 1000.0;
 
         // Gauss something or other, I'm an engineer not a mathematician.

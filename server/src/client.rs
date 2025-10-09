@@ -1,6 +1,5 @@
-use shared::{
-    ClientOptions, FramedSplitExt, Packet, PacketReadExt, PacketWriteExt, Reader, Writer,
-};
+use futures::SinkExt;
+use shared::{ClientOptions, FramedSplitExt, Packet, PacketReadExt, Reader, Writer};
 use tokio::{io::AsyncWriteExt, net::TcpStream, sync::mpsc, task::JoinHandle};
 
 use crate::{Error, Message};
@@ -35,8 +34,9 @@ impl Client {
         Ok(())
     }
 
-    pub async fn write(&mut self, packet: &Packet) -> Result<(), Error> {
-        self.writer.write(packet).await?;
+    pub async fn write(&mut self, packet: Packet) -> Result<(), Error> {
+        self.writer.send(packet).await?;
+        self.writer.flush().await?;
         Ok(())
     }
 

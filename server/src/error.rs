@@ -18,6 +18,9 @@ pub enum Error {
     #[error("packet error")]
     Packet(#[from] shared::Error),
 
+    #[error("json error")]
+    Json(#[from] json::Error),
+
     #[error("invalid lat/long request data")]
     Float(#[from] ParseFloatError),
 

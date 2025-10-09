@@ -1,4 +1,4 @@
-use shared::{LobbyAction, Packet};
+use shared::Packet;
 
 use crate::{Message, Server, error::Error, round};
 
@@ -12,15 +12,19 @@ pub async fn handler(server: &mut Server, message: Message) -> Result<(), Error>
                 let lobby = server.lobby().await;
                 let client = &mut server[id];
                 client
-                    .write(&Packet::Confirmed { id, options, lobby })
+                    .write(Packet::Confirmed { id, options, lobby })
                     .await?;
 
-                server.broadcast_lobby(id, LobbyAction::Join).await;
+                server
+                    .broadcast_lobby(id, shared::lobby::Action::Join)
+                    .await;
             }
             Ok(Packet::WaitingStatus { ready }) => {
                 server[id].ready = ready;
                 eprintln!("server(client {id}): ready = {ready}");
-                server.broadcast_lobby(id, LobbyAction::Ready).await;
+                server
+                    .broadcast_lobby(id, shared::lobby::Action::Ready)
+                    .await;
 
                 if server.ready() {
                     server.state = round::new(server, None).await?;

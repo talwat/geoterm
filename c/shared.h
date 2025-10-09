@@ -11,7 +11,6 @@
 #define IMAGE_SIZE (IMAGE_W * IMAGE_H)
 
 typedef enum { LOBBY_JOIN = 0, LOBBY_RETURN, LOBBY_LEAVE, LOBBY_READY } LobbyAction;
-
 typedef enum { COLOR_RED = 0, COLOR_YELLOW, COLOR_GREEN, COLOR_BLUE, COLOR_MAGENTA } Color;
 
 typedef struct {
@@ -49,47 +48,38 @@ typedef union {
     struct {
         ClientOptions options;
     } init;
-
     struct {
         size_t id;
         ClientOptions options;
         LobbyClient *lobby;
         size_t lobby_len;
     } confirmed;
-
     struct {
         LobbyAction action;
         size_t user;
         LobbyClient *lobby;
         size_t lobby_len;
     } lobby_event;
-
     struct {
         bool ready;
     } waiting_status;
-
     struct {
         LobbyClient *lobby;
         size_t lobby_len;
     } round_loading;
-
     struct {
         size_t number;
         uint8_t image[IMAGE_SIZE];
     } round_image;
-
     struct {
         Coordinate coordinates;
     } guess;
-
     struct {
         size_t player;
     } guessed;
-
     struct {
         RoundData round;
     } result;
-
     struct {
     } return_to_lobby;
 } PacketData;
