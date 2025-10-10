@@ -16,13 +16,4 @@
  */
 void deserialize_packet(int fd, Packet *packet);
 
-/**
- * Frees all heap allocations inside a Packet.
- * This should be called after processing a received Packet
- * to avoid memory leaks.
- *
- * @param packet The packet to free.
- */
-void free_packet(Packet *packet);
-
 #endif // DESERIALIZE_H

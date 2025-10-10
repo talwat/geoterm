@@ -12,6 +12,19 @@
 #define SERIAL_DEVICE "/dev/ttyS0"
 #define BUF_SIZE 1024
 
+#include <arpa/inet.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <termios.h>
+#include <unistd.h>
+
+#include "shared.h"
+
+#define SERIAL_DEVICE "/dev/ttyS0"
+
 int init_serial(const char *device) {
     int fd = open(device, O_RDWR | O_NOCTTY | O_SYNC);
     if (fd < 0) {
@@ -74,13 +87,22 @@ int init_tcp(char *ip) {
     return fd;
 }
 
-int main() { 
+ssize_t write_exact(int fd, const void *buf, size_t len) {
+    size_t total = 0;
+    while (total < len) {
+        ssize_t n = write(fd, (const char *)buf + total, len - total);
+        if (n <= 0)
+            return n;
+        total += n;
+    }
+    return total;
+}
+
+int main() {
     int serial_fd = init_serial(SERIAL_DEVICE);
     int tcp_fd = init_tcp("127.0.0.1");
 
-    char buf[BUF_SIZE];
-    ssize_t n;
-
+    Packet *packet = NULL;
     fd_set readfds;
     int maxfd = (tcp_fd > serial_fd ? tcp_fd : serial_fd) + 1;
 
@@ -96,16 +118,18 @@ int main() {
 
         // TCP -> Serial
         if (FD_ISSET(tcp_fd, &readfds)) {
-            n = read(tcp_fd, buf, BUF_SIZE);
-            if (n <= 0) break;
-            write(serial_fd, buf, n);
+            if (deserialize_packet(tcp_fd, &packet) < 0)
+                break;
+            if (write_exact(serial_fd, &packet, sizeof(*packet)) <= 0)
+                break;
         }
 
         // Serial -> TCP
         if (FD_ISSET(serial_fd, &readfds)) {
-            n = read(serial_fd, buf, BUF_SIZE);
-            if (n <= 0) break;
-            write(tcp_fd, buf, n);
+            uint32_t len;
+            if (read_exact(serial_fd, packet->data, len) <= 0)
+                break;
+            serialize_packet(tcp_fd, packet);
         }
     }
 

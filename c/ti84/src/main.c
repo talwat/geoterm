@@ -8,20 +8,10 @@
 #include <tice.h>
 
 #include "device.h"
+#include "shared.h"
 
-uint32_t assemble_u32_be(const char bytes[4]) {
-    return ((uint32_t)bytes[0] << 24) | ((uint32_t)bytes[1] << 16) | ((uint32_t)bytes[2] << 8) |
-           ((uint32_t)bytes[3]);
-}
-
-// Do NOT use this to read a packet that is very big.
-char *read() {
-    char len_bytes[4];
-    srl_Read(&srl, &len_bytes, 4);
-    uint32_t len = assemble_u32_be(len_bytes);
-
-    char *buf = malloc(len);
-    size_t n = srl_Read(&srl, buf, len);
+char *read(char buf[128]) {
+    size_t n = srl_Read(&srl, buf, 128);
 
     if (n <= 0) {
         return NULL;
@@ -30,10 +20,17 @@ char *read() {
     }
 }
 
+void wait() {
+    while (!kb_IsDown(kb_KeyClear)) {
+        kb_Scan();
+        usb_HandleEvents();
+    }
+}
+
 int main(void) {
     os_ClrHome();
     os_SetCursorPos(0, 0);
-    os_PutStrFull("geoterm ti84: initializing...");
+    os_PutStrFull("geoterm ti84\ninitializing...\n");
 
     os_SetCursorPos(1, 0);
     const usb_standard_descriptors_t *desc = srl_GetCDCStandardDescriptors();
@@ -48,12 +45,20 @@ int main(void) {
     }
 
     os_PutStrFull("initialized serial connection! :)");
+    wait();
+
+    PacketData data = {.init = {.options = {.color = 1, .user = "tal"}}};
+    Packet packet = {.data = data, .type = PACKET_INIT};
+
+    int n = srl_Write(&srl, &packet, sizeof(packet));
+    printf("wrote %d bytes!", n);
+
     do {
         kb_Scan();
         usb_HandleEvents();
 
         if (has_srl_device) {
-            char *buf = read();
+            // you should read here.
         }
     } while (!kb_IsDown(kb_KeyClear));
 
