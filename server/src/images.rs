@@ -1,9 +1,9 @@
 use std::io::Cursor;
 
 use crate::{error::Error, images::huggingface::Data};
-use bytes::{BufMut, Bytes, BytesMut};
+use bytes::Bytes;
 use image::{GenericImageView, ImageReader, imageops};
-use shared::image::{HEIGHT, SIZE, WIDTH};
+use shared::image::{HEIGHT, WIDTH};
 
 pub mod huggingface;
 
@@ -25,12 +25,9 @@ pub async fn images() -> Result<([Bytes; 3], Data), Error> {
     let slices: [Bytes; 3] = std::array::from_fn(|i| {
         let view = img.view(slice * i as u32, 0, slice, height).to_image();
         let resized = imageops::resize(&view, WIDTH, HEIGHT, image::imageops::FilterType::Lanczos3);
+        let bytes = shared::image::encode(resized).unwrap();
 
-        let bytes = BytesMut::with_capacity(SIZE as usize);
-        let mut writer = bytes.writer();
-        shared::image::encode(resized, &mut writer).unwrap();
-
-        writer.into_inner().freeze()
+        bytes
     });
     eprintln!("-> sliced images at {} bytes each", slices[0].len());
 

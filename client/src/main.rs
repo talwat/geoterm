@@ -1,3 +1,4 @@
+use bytes::BytesMut;
 use crossterm::event::KeyCode;
 use shared::{
     ClientOptions, Packet, PacketReadExt, PacketWriteExt, Reader, Writer,
@@ -144,7 +145,7 @@ async fn main() -> eyre::Result<()> {
                         Packet::Round { number, image } => {
                             state = State::Round(round::Round {
                                 image_len: image.len(),
-                                image: decode(&mut image.reader(), WIDTH, HEIGHT)?,
+                                image: decode(&mut BytesMut::from(image), WIDTH, HEIGHT)?,
                                 cursor: (0.0, 0.0),
                                 guessed: false,
                                 guessing: false,

@@ -1,12 +1,56 @@
 #include <arpa/inet.h>
+#include <errno.h>
+#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <termios.h>
 #include <unistd.h>
 
 #include "shared.h"
 
-int init_connection(char *ip) {
+#define SERIAL_DEVICE "/dev/ttyS0"
+#define BUF_SIZE 1024
+
+int init_serial(const char *device) {
+    int fd = open(device, O_RDWR | O_NOCTTY | O_SYNC);
+    if (fd < 0) {
+        perror("opening serial device failed");
+        exit(EXIT_FAILURE);
+    }
+
+    struct termios tty;
+    memset(&tty, 0, sizeof tty);
+    if (tcgetattr(fd, &tty) != 0) {
+        perror("tcgetattr failed");
+        exit(EXIT_FAILURE);
+    }
+
+    cfsetospeed(&tty, BAUD);
+    cfsetispeed(&tty, BAUD);
+
+    tty.c_cflag = (tty.c_cflag & ~CSIZE) | CS8;
+    tty.c_iflag &= ~IGNBRK;
+    tty.c_lflag = 0;
+    tty.c_oflag = 0;
+    tty.c_cc[VMIN] = 1;
+    tty.c_cc[VTIME] = 0;
+
+    tty.c_iflag &= ~(IXON | IXOFF | IXANY);
+    tty.c_cflag |= (CLOCAL | CREAD);
+    tty.c_cflag &= ~(PARENB | PARODD);
+    tty.c_cflag &= ~CSTOPB;
+    tty.c_cflag &= ~CRTSCTS;
+
+    if (tcsetattr(fd, TCSANOW, &tty) != 0) {
+        perror("tcsetattr failed");
+        exit(EXIT_FAILURE);
+    }
+
+    return fd;
+}
+
+int init_tcp(char *ip) {
     int fd;
     struct sockaddr_in address;
     socklen_t address_len = sizeof(address);
@@ -30,14 +74,42 @@ int init_connection(char *ip) {
     return fd;
 }
 
-int main() {
-    PacketData data = {.init = {.options = {.color = 1, .user = "tal", .user_len = 3}}};
-    Packet packet = {.data = data, .tag = "init"};
+int main() { 
+    int serial_fd = init_serial(SERIAL_DEVICE);
+    int tcp_fd = init_tcp("127.0.0.1");
 
-    int sock = init_connection("127.0.0.1");
+    char buf[BUF_SIZE];
+    ssize_t n;
 
-    char buf[128];
-    fgets(&buf, sizeof(buf), stdin);
+    fd_set readfds;
+    int maxfd = (tcp_fd > serial_fd ? tcp_fd : serial_fd) + 1;
 
+    while (1) {
+        FD_ZERO(&readfds);
+        FD_SET(tcp_fd, &readfds);
+        FD_SET(serial_fd, &readfds);
+
+        if (select(maxfd, &readfds, NULL, NULL, NULL) < 0) {
+            perror("select failed");
+            break;
+        }
+
+        // TCP -> Serial
+        if (FD_ISSET(tcp_fd, &readfds)) {
+            n = read(tcp_fd, buf, BUF_SIZE);
+            if (n <= 0) break;
+            write(serial_fd, buf, n);
+        }
+
+        // Serial -> TCP
+        if (FD_ISSET(serial_fd, &readfds)) {
+            n = read(serial_fd, buf, BUF_SIZE);
+            if (n <= 0) break;
+            write(tcp_fd, buf, n);
+        }
+    }
+
+    close(tcp_fd);
+    close(serial_fd);
     return 0;
 }

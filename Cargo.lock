@@ -154,12 +154,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3995eaeebcdf32f91f980d360f78732ddc061097ab4e39991ae7a6ace9194677"
 
 [[package]]
-name = "byteorder"
-version = "1.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1fd0f2584146f6f2ef48085050886acf353beff7305ebd1ae69500e27c67f64b"
-
-[[package]]
 name = "byteorder-lite"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -224,6 +218,7 @@ checksum = "613afe47fcd5fac7ccf1db93babcb082c5994d996f20b8b159f2ad1658eb5724"
 name = "client"
 version = "0.1.0"
 dependencies = [
+ "bytes",
  "crossterm 0.29.0",
  "eyre",
  "futures",
@@ -2073,7 +2068,6 @@ dependencies = [
 name = "shared"
 version = "0.1.0"
 dependencies = [
- "byteorder",
  "bytes",
  "eyre",
  "futures",

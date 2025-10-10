@@ -1,12 +1,13 @@
-use byteorder::ReadBytesExt;
+use bytes::{Buf, BufMut, Bytes, BytesMut};
 use image::{Pixel, Rgb, RgbImage};
-use std::io::{Read, Write};
 
 pub const WIDTH: u32 = 320;
 pub const HEIGHT: u32 = 240;
 pub const SIZE: u32 = 320 * 240;
 
-pub fn encode<W: Write>(image: RgbImage, writer: &mut W) -> std::io::Result<()> {
+pub fn encode(image: RgbImage) -> std::io::Result<Bytes> {
+    let mut bytes = BytesMut::with_capacity(SIZE as usize);
+
     let (width, height) = image.dimensions();
     assert!(width % WIDTH == 0, "width is incorrect!");
     assert!(height % HEIGHT == 0, "height is incorrect!");
@@ -21,24 +22,21 @@ pub fn encode<W: Write>(image: RgbImage, writer: &mut W) -> std::io::Result<()> 
         let b = (*b >> 6) & 0x03;
 
         let combined = (r << 5) | (g << 2) | b;
-        writer.write_all(&[combined])?;
+        bytes.put_u8(combined);
     }
 
-    Ok(())
+    Ok(bytes.freeze())
 }
 
-pub fn decode<R: Read>(reader: &mut R, width: u32, height: u32) -> std::io::Result<RgbImage> {
+pub fn decode(bytes: &mut BytesMut, width: u32, height: u32) -> std::io::Result<RgbImage> {
     assert!(width % WIDTH == 0, "width is incorrect!");
     assert!(height % HEIGHT == 0, "height is incorrect!");
 
     let mut img = RgbImage::new(width, height);
 
-    'main: for y in 0..height {
+    for y in 0..height {
         for x in 0..width {
-            let Ok(combined) = reader.read_u8() else {
-                break 'main;
-            };
-
+            let combined = bytes.get_u8();
             let r = (combined >> 5) & 0x07;
             let g = (combined >> 2) & 0x07;
             let b = combined & 0x03;

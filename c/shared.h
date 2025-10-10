@@ -6,22 +6,34 @@
 #include <stdint.h>
 
 #define PORT 4000
+#define BAUD 38400
 #define IMAGE_W 320
 #define IMAGE_H 240
 #define IMAGE_SIZE (IMAGE_W * IMAGE_H)
 
 typedef enum { LOBBY_JOIN = 0, LOBBY_RETURN, LOBBY_LEAVE, LOBBY_READY } LobbyAction;
 typedef enum { COLOR_RED = 0, COLOR_YELLOW, COLOR_GREEN, COLOR_BLUE, COLOR_MAGENTA } Color;
+typedef enum {
+    PACKET_INIT = 0,
+    PACKET_CONFIRMED,
+    PACKET_LOBBY_EVENT,
+    PACKET_WAITING_STATUS,
+    PACKET_ROUND_LOADING,
+    PACKET_ROUND,
+    PACKET_GUESS,
+    PACKET_GUESSED,
+    PACKET_RESULT,
+    PACKET_RETURN_TO_LOBBY
+} PacketType;
 
 typedef struct {
-    float lon;
-    float lat;
+    float longitude;
+    float latitude;
 } Coordinate;
 
 typedef struct {
-    char *user;
-    size_t user_len;
     Color color;
+    char user[16];
 } ClientOptions;
 
 typedef struct {
@@ -29,6 +41,11 @@ typedef struct {
     bool ready;
     ClientOptions options;
 } LobbyClient;
+
+typedef struct {
+    size_t len;
+    LobbyClient *clients;
+} Clients;
 
 typedef struct {
     bool has_guess;
@@ -40,8 +57,8 @@ typedef struct {
 typedef struct {
     size_t number;
     Coordinate answer;
-    Player *players;
     size_t players_len;
+    Player *players;
 } RoundData;
 
 typedef union {
@@ -51,26 +68,24 @@ typedef union {
     struct {
         size_t id;
         ClientOptions options;
-        LobbyClient *lobby;
-        size_t lobby_len;
+        Clients lobby;
     } confirmed;
     struct {
         LobbyAction action;
         size_t user;
-        LobbyClient *lobby;
-        size_t lobby_len;
+        Clients lobby;
     } lobby_event;
     struct {
         bool ready;
     } waiting_status;
     struct {
-        LobbyClient *lobby;
-        size_t lobby_len;
+        Clients lobby;
     } round_loading;
     struct {
         size_t number;
+        size_t image_len;
         uint8_t image[IMAGE_SIZE];
-    } round_image;
+    } round;
     struct {
         Coordinate coordinates;
     } guess;
@@ -85,7 +100,7 @@ typedef union {
 } PacketData;
 
 typedef struct {
-    const char *tag;
+    PacketType type;
     PacketData data;
 } Packet;
 
