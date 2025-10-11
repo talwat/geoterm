@@ -1,0 +1,13 @@
+[package]
+name = "transponder"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+shared = { path = "../shared" }
+eyre = "0.6.12"
+tokio = { version = "1.47.1", features = ["io-util", "rt", "macros", "net", "sync"] }
+tokio-serial = "5.4.5"
+
+[build-dependencies]
+bindgen = "0.71.0"

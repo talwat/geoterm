@@ -1,10 +1,10 @@
 use std::{
-    net::SocketAddr,
+    net::{SocketAddr, SocketAddrV4},
     ops::{Index, IndexMut},
 };
 
 use futures::future::join_all;
-use shared::{Packet, RoundData};
+use shared::{LOCALHOST, PORT, Packet, RoundData};
 use tokio::{
     io::AsyncWriteExt,
     net::{TcpListener, TcpStream},
@@ -144,7 +144,7 @@ impl Server {
 
     pub async fn new() -> Result<Self, Error> {
         let (tx, rx) = mpsc::channel(8);
-        let tcp = TcpListener::bind("127.0.0.1:4000").await?;
+        let tcp = TcpListener::bind(LOCALHOST).await?;
         let listener = tokio::spawn(Self::listen(tcp, tx.clone()));
 
         Ok(Self {

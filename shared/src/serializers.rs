@@ -1,6 +1,6 @@
-use tokio::io::AsyncWriteExt;
+use tokio::io::{AsyncWrite, AsyncWriteExt};
 
-use crate::{ClientOptions, Coordinate, Error, Packet, Player, RoundData, Writer, lobby};
+use crate::{ClientOptions, Coordinate, Error, Packet, Player, RoundData, lobby};
 
 trait ToFixed<const LEN: usize> {
     fn fixed(&self) -> [u8; LEN];
@@ -17,15 +17,15 @@ impl<const LEN: usize> ToFixed<LEN> for String {
     }
 }
 
-pub trait Serialize {
+pub trait Serialize<W: AsyncWrite + Unpin + Send> {
     fn serialize(
         &self,
-        writer: &mut Writer,
+        writer: &mut W,
     ) -> impl std::future::Future<Output = Result<(), Error>> + Send;
 }
 
-impl Serialize for ClientOptions {
-    async fn serialize(&self, writer: &mut Writer) -> Result<(), Error> {
+impl<W: AsyncWrite + Unpin + Send> Serialize<W> for ClientOptions {
+    async fn serialize(&self, writer: &mut W) -> Result<(), Error> {
         writer.write_u8(self.color as u8).await?;
 
         let user: [u8; 16] = self.user.fixed();
@@ -35,8 +35,8 @@ impl Serialize for ClientOptions {
     }
 }
 
-impl Serialize for lobby::Client {
-    async fn serialize(&self, writer: &mut Writer) -> Result<(), Error> {
+impl<W: AsyncWrite + Unpin + Send> Serialize<W> for lobby::Client {
+    async fn serialize(&self, writer: &mut W) -> Result<(), Error> {
         writer.write_u32(self.id as u32).await?;
         writer.write_u8(self.ready as u8).await?;
         self.options.serialize(writer).await?;
@@ -45,28 +45,26 @@ impl Serialize for lobby::Client {
     }
 }
 
-impl Serialize for lobby::Clients {
-    async fn serialize(&self, writer: &mut Writer) -> Result<(), Error> {
+impl<W: AsyncWrite + Unpin + Send> Serialize<W> for lobby::Clients {
+    async fn serialize(&self, writer: &mut W) -> Result<(), Error> {
         writer.write_u32(self.len() as u32).await?;
         for client in self {
             client.serialize(writer).await?;
         }
-
         Ok(())
     }
 }
 
-impl Serialize for Coordinate {
-    async fn serialize(&self, writer: &mut Writer) -> Result<(), Error> {
+impl<W: AsyncWrite + Unpin + Send> Serialize<W> for Coordinate {
+    async fn serialize(&self, writer: &mut W) -> Result<(), Error> {
         writer.write_f32(self.latitude).await?;
         writer.write_f32(self.longitude).await?;
-
         Ok(())
     }
 }
 
-impl Serialize for Player {
-    async fn serialize(&self, writer: &mut Writer) -> Result<(), Error> {
+impl<W: AsyncWrite + Unpin + Send> Serialize<W> for Player {
+    async fn serialize(&self, writer: &mut W) -> Result<(), Error> {
         writer.write_u32(self.id as u32).await?;
         writer.write_u32(self.points as u32).await?;
 
@@ -74,15 +72,15 @@ impl Serialize for Player {
         if let Some(guess) = self.guess {
             guess.serialize(writer).await?;
         } else {
-            writer.write(&[0; 2]).await?;
+            writer.write_all(&[0; 2]).await?;
         }
 
         Ok(())
     }
 }
 
-impl Serialize for RoundData {
-    async fn serialize(&self, writer: &mut Writer) -> Result<(), Error> {
+impl<W: AsyncWrite + Unpin + Send> Serialize<W> for RoundData {
+    async fn serialize(&self, writer: &mut W) -> Result<(), Error> {
         writer.write_u32(self.number as u32).await?;
         self.answer.serialize(writer).await?;
 
@@ -95,8 +93,8 @@ impl Serialize for RoundData {
     }
 }
 
-impl Serialize for Packet {
-    async fn serialize(&self, writer: &mut Writer) -> Result<(), Error> {
+impl<W: AsyncWrite + Unpin + Send> Serialize<W> for Packet {
+    async fn serialize(&self, writer: &mut W) -> Result<(), Error> {
         let id = self.id();
         writer.write_u8(id).await?;
 
@@ -139,6 +137,7 @@ impl Serialize for Packet {
             Packet::ReturnToLobby => {}
         }
 
+        writer.flush().await?;
         Ok(())
     }
 }

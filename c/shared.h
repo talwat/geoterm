@@ -12,7 +12,7 @@
 #define IMAGE_SIZE (IMAGE_W * IMAGE_H)
 
 typedef enum { LOBBY_JOIN = 0, LOBBY_RETURN, LOBBY_LEAVE, LOBBY_READY } LobbyAction;
-typedef enum { COLOR_RED = 0, COLOR_YELLOW, COLOR_GREEN, COLOR_BLUE, COLOR_MAGENTA } Color;
+typedef enum { RED = 0, YELLOW, GREEN, BLUE, MAGENTA } Color;
 typedef enum {
     PACKET_INIT = 0,
     PACKET_CONFIRMED,
@@ -84,7 +84,7 @@ typedef union {
     struct {
         size_t number;
         size_t image_len;
-        uint8_t image[IMAGE_SIZE];
+        char *image;
     } round;
     struct {
         Coordinate coordinates;
@@ -100,7 +100,7 @@ typedef union {
 } PacketData;
 
 typedef struct {
-    PacketType type;
+    PacketType id;
     PacketData data;
 } Packet;
 

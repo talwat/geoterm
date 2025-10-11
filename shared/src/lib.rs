@@ -1,15 +1,28 @@
-use std::{ops::IndexMut, str::Utf8Error};
+use std::{
+    net::{Ipv4Addr, SocketAddrV4},
+    ops::IndexMut,
+    str::Utf8Error,
+};
 
 use bytes::Bytes;
-use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
+use tokio::{
+    io::{BufReader, BufWriter},
+    net::{
+        TcpStream,
+        tcp::{OwnedReadHalf, OwnedWriteHalf},
+    },
+};
 
-pub type Writer = OwnedWriteHalf;
-pub type Reader = OwnedReadHalf;
+pub type Writer = BufWriter<OwnedWriteHalf>;
+pub type Reader = BufReader<OwnedReadHalf>;
 
 pub mod deserializers;
 pub mod image;
 pub mod lobby;
 pub mod serializers;
+
+pub const PORT: u16 = 4000;
+pub const LOCALHOST: SocketAddrV4 = SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), PORT);
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct RoundData {
@@ -145,6 +158,17 @@ pub enum Error {
 
     #[error("unknown packet: {0:?}")]
     Unknown(u8),
+}
+
+pub trait BufferedSplitExt {
+    fn buffered_split(self) -> (Reader, Writer);
+}
+
+impl BufferedSplitExt for TcpStream {
+    fn buffered_split(self) -> (Reader, Writer) {
+        let (reader, writer) = self.into_split();
+        (BufReader::new(reader), BufWriter::new(writer))
+    }
 }
 
 pub trait PacketReadExt {

@@ -1,7 +1,8 @@
 use bytes::BytesMut;
 use crossterm::event::KeyCode;
 use shared::{
-    ClientOptions, Packet, PacketReadExt, PacketWriteExt, Reader, Writer,
+    BufferedSplitExt, ClientOptions, LOCALHOST, Packet, PacketReadExt, PacketWriteExt, Reader,
+    Writer,
     image::{HEIGHT, WIDTH, decode},
     lobby::Clients,
 };
@@ -10,7 +11,6 @@ use tokio::{
     sync::mpsc::{self, Receiver, Sender},
     task::JoinHandle,
 };
-use tokio_util::bytes::Buf;
 
 use crate::ui::{UI, lobby, results, round};
 
@@ -46,8 +46,8 @@ impl Client {
 
     pub async fn new(options: ClientOptions) -> eyre::Result<(Self, Clients)> {
         let (tx, rx) = mpsc::channel(8);
-        let stream = TcpStream::connect("127.0.0.1:4000").await?;
-        let (mut reader, mut writer) = stream.into_split();
+        let stream = TcpStream::connect(LOCALHOST).await?;
+        let (mut reader, mut writer) = stream.buffered_split();
 
         writer
             .write_packet(Packet::Init {

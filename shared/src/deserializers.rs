@@ -1,18 +1,17 @@
 use crate::{
-    ClientOptions, Color, Coordinate, Error, Packet, Player, Reader, RoundData,
+    ClientOptions, Color, Coordinate, Error, Packet, Player, RoundData,
     lobby::{self, Clients},
 };
 use bytes::Bytes;
-use tokio::io::AsyncReadExt;
+use tokio::io::{AsyncRead, AsyncReadExt};
 
-pub trait Deserialize: Sized {
-    fn deserialize(
-        reader: &mut Reader,
-    ) -> impl std::future::Future<Output = Result<Self, Error>> + Send;
+pub trait Deserialize<R: AsyncRead + Unpin + Send>: Sized {
+    fn deserialize(reader: &mut R)
+    -> impl std::future::Future<Output = Result<Self, Error>> + Send;
 }
 
-impl Deserialize for ClientOptions {
-    async fn deserialize(reader: &mut Reader) -> Result<Self, Error> {
+impl<R: AsyncRead + Unpin + Send> Deserialize<R> for ClientOptions {
+    async fn deserialize(reader: &mut R) -> Result<Self, Error> {
         let color: Color = unsafe { std::mem::transmute(reader.read_u8().await?) };
 
         let mut user = [0; 16];
@@ -23,8 +22,8 @@ impl Deserialize for ClientOptions {
     }
 }
 
-impl Deserialize for lobby::Client {
-    async fn deserialize(reader: &mut Reader) -> Result<Self, Error> {
+impl<R: AsyncRead + Unpin + Send> Deserialize<R> for lobby::Client {
+    async fn deserialize(reader: &mut R) -> Result<Self, Error> {
         let id = reader.read_u32().await? as usize;
         let ready = reader.read_u8().await? != 0;
         let options = ClientOptions::deserialize(reader).await?;
@@ -32,19 +31,19 @@ impl Deserialize for lobby::Client {
     }
 }
 
-impl Deserialize for Coordinate {
-    async fn deserialize(reader: &mut Reader) -> Result<Self, Error> {
+impl<R: AsyncRead + Unpin + Send> Deserialize<R> for Coordinate {
+    async fn deserialize(reader: &mut R) -> Result<Self, Error> {
         let latitude = reader.read_f32().await?;
         let longitude = reader.read_f32().await?;
         Ok(Self {
-            longitude,
             latitude,
+            longitude,
         })
     }
 }
 
-impl Deserialize for Player {
-    async fn deserialize(reader: &mut Reader) -> Result<Self, Error> {
+impl<R: AsyncRead + Unpin + Send> Deserialize<R> for Player {
+    async fn deserialize(reader: &mut R) -> Result<Self, Error> {
         let id = reader.read_u32().await? as usize;
         let points = reader.read_u32().await? as u64;
         let has_guess = reader.read_u8().await? != 0;
@@ -53,16 +52,15 @@ impl Deserialize for Player {
         } else {
             let mut pad = [0u8; 2];
             reader.read_exact(&mut pad).await?;
-
             None
         };
 
-        Ok(Self { guess, points, id })
+        Ok(Self { id, points, guess })
     }
 }
 
-impl Deserialize for RoundData {
-    async fn deserialize(reader: &mut Reader) -> Result<Self, Error> {
+impl<R: AsyncRead + Unpin + Send> Deserialize<R> for RoundData {
+    async fn deserialize(reader: &mut R) -> Result<Self, Error> {
         let number = reader.read_u32().await? as usize;
         let answer = Coordinate::deserialize(reader).await?;
 
@@ -80,8 +78,8 @@ impl Deserialize for RoundData {
     }
 }
 
-impl Deserialize for Clients {
-    async fn deserialize(reader: &mut Reader) -> Result<Self, Error> {
+impl<R: AsyncRead + Unpin + Send> Deserialize<R> for Clients {
+    async fn deserialize(reader: &mut R) -> Result<Self, Error> {
         let len = reader.read_u32().await? as usize;
         let mut clients = Vec::with_capacity(len);
         for _ in 0..len {
@@ -92,8 +90,8 @@ impl Deserialize for Clients {
     }
 }
 
-impl Deserialize for Packet {
-    async fn deserialize(reader: &mut Reader) -> Result<Self, Error> {
+impl<R: AsyncRead + Unpin + Send> Deserialize<R> for Packet {
+    async fn deserialize(reader: &mut R) -> Result<Self, Error> {
         match reader.read_u8().await? {
             0 => Ok(Self::Init {
                 options: ClientOptions::deserialize(reader).await?,
@@ -127,7 +125,7 @@ impl Deserialize for Packet {
                 })
             }
             6 => Ok(Self::Guess {
-                coordinates: crate::Coordinate::deserialize(reader).await?,
+                coordinates: Coordinate::deserialize(reader).await?,
             }),
             7 => Ok(Self::Guessed {
                 player: reader.read_u32().await? as usize,

@@ -1,4 +1,6 @@
-use shared::{ClientOptions, Packet, PacketReadExt, PacketWriteExt, Reader, Writer};
+use shared::{
+    BufferedSplitExt, ClientOptions, Packet, PacketReadExt, PacketWriteExt, Reader, Writer,
+};
 use tokio::{io::AsyncWriteExt, net::TcpStream, sync::mpsc, task::JoinHandle};
 
 use crate::{Error, Message};
@@ -44,7 +46,7 @@ impl Client {
         tx: mpsc::Sender<Message>,
         socket: TcpStream,
     ) -> Result<Self, Error> {
-        let (reader, writer) = socket.into_split();
+        let (reader, writer) = socket.buffered_split();
         let handle = tokio::spawn(Self::listener(id, tx.clone(), reader));
 
         Ok(Self {

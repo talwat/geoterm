@@ -9,7 +9,6 @@ eyre = "0.6.12"
 futures = "0.3.31"
 thiserror = "2.0.16"
 tokio = { version = "1.47.1", default-features = false, features = ["macros", "net", "rt-multi-thread", "io-util", "sync", "fs"] }
-tokio-util = { version = "0.7.16", default-features = false, features = ["codec"] }
 image = { version = "0.25.8", default-features = false, features = ["bmp"] }
 crossterm = { version = "0.29.0", features = ["event-stream"] }
 ratatui = "0.29.0"

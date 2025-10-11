@@ -41,6 +41,10 @@ impl Clients {
     pub fn len(&self) -> usize {
         self.inner.len()
     }
+
+    pub fn into_inner(self) -> Vec<Client> {
+        self.inner
+    }
 }
 
 impl From<Vec<Client>> for Clients {

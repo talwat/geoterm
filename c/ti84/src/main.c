@@ -5,32 +5,19 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
-#include <tice.h>
 
+#include <ti/getcsc.h>
+#include <ti/screen.h>
+
+#include "deserialize.h"
 #include "device.h"
+#include "serialize.h"
 #include "shared.h"
-
-char *read(char buf[128]) {
-    size_t n = srl_Read(&srl, buf, 128);
-
-    if (n <= 0) {
-        return NULL;
-    } else {
-        return buf;
-    }
-}
-
-void wait() {
-    while (!kb_IsDown(kb_KeyClear)) {
-        kb_Scan();
-        usb_HandleEvents();
-    }
-}
 
 int main(void) {
     os_ClrHome();
     os_SetCursorPos(0, 0);
-    os_PutStrFull("geoterm ti84\ninitializing...\n");
+    os_PutStrFull("geoterm ti84");
 
     os_SetCursorPos(1, 0);
     const usb_standard_descriptors_t *desc = srl_GetCDCStandardDescriptors();
@@ -44,21 +31,27 @@ int main(void) {
         return 1;
     }
 
-    os_PutStrFull("initialized serial connection! :)");
-    wait();
+    os_SetCursorPos(2, 0);
+    os_PutStrFull("init serial! :)");
+
+    while (!os_GetCSC()) {
+        usb_HandleEvents();
+    };
 
     PacketData data = {.init = {.options = {.color = 1, .user = "tal"}}};
-    Packet packet = {.data = data, .type = PACKET_INIT};
+    Packet packet = {.data = data, .id = PACKET_INIT};
+    serialize_packet(&packet);
 
-    int n = srl_Write(&srl, &packet, sizeof(packet));
-    printf("wrote %d bytes!", n);
+    os_SetCursorPos(3, 0);
+    printf("sent packet with type %d", packet.id);
 
     do {
         kb_Scan();
         usb_HandleEvents();
 
         if (has_srl_device) {
-            // you should read here.
+            // deserialize_packet(&packet);
+            // printf("got packet of id %d", packet.id);
         }
     } while (!kb_IsDown(kb_KeyClear));
 
