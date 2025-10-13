@@ -12,12 +12,18 @@ impl TCP {
         mut reader: shared::Reader,
         mut writer: io::WriteHalf<SerialStream>,
     ) -> eyre::Result<()> {
-        while let Ok(packet) = reader.read_packet().await {
-            eprintln!("transponder: client-bound tcp packet: {packet:?}");
-            packet.serialize(&mut writer).await?;
+        loop {
+            match reader.read_packet().await {
+                Ok(packet) => {
+                    eprintln!("transponder: client-bound tcp packet: {packet:?}");
+                    packet.serialize(&mut writer).await?;
+                }
+                Err(error) => {
+                    eprintln!("transponder: error with client-bound tcp packet: {error:?}");
+                    break Ok(());
+                }
+            }
         }
-
-        Ok(())
     }
 
     pub async fn init() -> eyre::Result<Self> {

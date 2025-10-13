@@ -29,7 +29,13 @@ pub async fn images() -> Result<([Bytes; 3], Data), Error> {
 
         bytes
     });
-    eprintln!("-> sliced images at {} bytes each", slices[0].len());
+
+    eprintln!(
+        "-> compressed images at {}, {}, {} bytes",
+        slices[0].len(),
+        slices[1].len(),
+        slices[2].len()
+    );
 
     Ok((slices, data))
 }

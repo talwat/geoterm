@@ -12,13 +12,18 @@ impl Serial {
         mut reader: io::ReadHalf<SerialStream>,
         mut writer: shared::Writer,
     ) -> eyre::Result<()> {
-        eprintln!("serial!");
-
-        while let Ok(packet) = Packet::deserialize(&mut reader).await {
-            eprintln!("transponder: server-bound serial packet: {packet:?}");
-            writer.write_packet(packet).await?;
+        loop {
+            match Packet::deserialize(&mut reader).await {
+                Ok(packet) => {
+                    eprintln!("transponder: server-bound serial packet: {packet:?}");
+                    writer.write_packet(packet).await?;
+                }
+                Err(error) => {
+                    eprintln!("transponder: error parsing server-bound serial packet: {error:?}");
+                    break Ok(());
+                }
+            }
         }
-        Ok(())
     }
 
     pub async fn init() -> eyre::Result<Self> {

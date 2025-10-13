@@ -2,9 +2,9 @@
 #include <device.h>
 #include <string.h>
 
-static const char IMAGE[IMAGE_SIZE];
-static const LobbyClient LOBBY[16];
-static const Player PLAYERS[16];
+static char IMAGE[32768];
+static LobbyClient LOBBY[16];
+static Player PLAYERS[16];
 
 static uint8_t read_u8(void) {
     uint8_t v;
@@ -72,11 +72,8 @@ static void deserialize_round_data(RoundData *r) {
 }
 
 void deserialize_packet(Packet *p) {
-    p->id = (PacketType)read_u8();
-    switch (p->id) {
-    case PACKET_INIT:
-        deserialize_client_options(&p->data.init.options);
-        break;
+    p->tag = (PacketTag)read_u8();
+    switch (p->tag) {
     case PACKET_CONFIRMED:
         p->data.confirmed.id = read_u32();
         deserialize_client_options(&p->data.confirmed.options);
@@ -87,9 +84,6 @@ void deserialize_packet(Packet *p) {
         p->data.lobby_event.user = read_u32();
         deserialize_clients(&p->data.lobby_event.lobby);
         break;
-    case PACKET_WAITING_STATUS:
-        p->data.waiting_status.ready = read_u8();
-        break;
     case PACKET_ROUND_LOADING:
         deserialize_clients(&p->data.round_loading.lobby);
         break;
@@ -98,9 +92,6 @@ void deserialize_packet(Packet *p) {
         p->data.round.image_len = read_u32();
         p->data.round.image = IMAGE;
         srl_Read(&srl, p->data.round.image, p->data.round.image_len);
-        break;
-    case PACKET_GUESS:
-        deserialize_coordinate(&p->data.guess.coordinates);
         break;
     case PACKET_GUESSED:
         p->data.guessed.player = read_u32();

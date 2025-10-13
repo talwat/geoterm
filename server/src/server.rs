@@ -1,10 +1,10 @@
 use std::{
-    net::{SocketAddr, SocketAddrV4},
+    net::SocketAddr,
     ops::{Index, IndexMut},
 };
 
 use futures::future::join_all;
-use shared::{LOCALHOST, PORT, Packet, RoundData};
+use shared::{LOCALHOST, Packet, RoundData};
 use tokio::{
     io::AsyncWriteExt,
     net::{TcpListener, TcpStream},

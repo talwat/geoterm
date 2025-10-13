@@ -16,12 +16,13 @@ use tokio::{
 pub type Writer = BufWriter<OwnedWriteHalf>;
 pub type Reader = BufReader<OwnedReadHalf>;
 
+pub mod compression;
 pub mod deserializers;
 pub mod image;
 pub mod lobby;
 pub mod serializers;
 
-pub const PORT: u16 = 4000;
+pub const PORT: u16 = 3000;
 pub const LOCALHOST: SocketAddrV4 = SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), PORT);
 
 #[derive(Clone, Debug, PartialEq)]
@@ -126,18 +127,18 @@ pub enum Packet {
 }
 
 impl Packet {
-    pub fn id(&self) -> u8 {
+    pub fn tag(&self) -> u8 {
         match self {
-            Packet::Init { .. } => 0,
-            Packet::Confirmed { .. } => 1,
-            Packet::LobbyEvent { .. } => 2,
-            Packet::WaitingStatus { .. } => 3,
-            Packet::RoundLoading { .. } => 4,
-            Packet::Round { .. } => 5,
-            Packet::Guess { .. } => 6,
-            Packet::Guessed { .. } => 7,
-            Packet::Result { .. } => 8,
-            Packet::ReturnToLobby => 9,
+            Packet::Init { .. } => 1,
+            Packet::Confirmed { .. } => 2,
+            Packet::LobbyEvent { .. } => 3,
+            Packet::WaitingStatus { .. } => 4,
+            Packet::RoundLoading { .. } => 5,
+            Packet::Round { .. } => 6,
+            Packet::Guess { .. } => 7,
+            Packet::Guessed { .. } => 8,
+            Packet::Result { .. } => 9,
+            Packet::ReturnToLobby => 10,
         }
     }
 }

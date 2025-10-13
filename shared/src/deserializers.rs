@@ -93,26 +93,26 @@ impl<R: AsyncRead + Unpin + Send> Deserialize<R> for Clients {
 impl<R: AsyncRead + Unpin + Send> Deserialize<R> for Packet {
     async fn deserialize(reader: &mut R) -> Result<Self, Error> {
         match reader.read_u8().await? {
-            0 => Ok(Self::Init {
+            1 => Ok(Self::Init {
                 options: ClientOptions::deserialize(reader).await?,
             }),
-            1 => Ok(Self::Confirmed {
+            2 => Ok(Self::Confirmed {
                 id: reader.read_u32().await? as usize,
                 options: ClientOptions::deserialize(reader).await?,
                 lobby: Clients::deserialize(reader).await?,
             }),
-            2 => Ok(Self::LobbyEvent {
+            3 => Ok(Self::LobbyEvent {
                 action: unsafe { std::mem::transmute(reader.read_u8().await?) },
                 user: reader.read_u32().await? as usize,
                 lobby: Clients::deserialize(reader).await?,
             }),
-            3 => Ok(Self::WaitingStatus {
+            4 => Ok(Self::WaitingStatus {
                 ready: reader.read_u8().await? != 0,
             }),
-            4 => Ok(Self::RoundLoading {
+            5 => Ok(Self::RoundLoading {
                 lobby: Clients::deserialize(reader).await?,
             }),
-            5 => {
+            6 => {
                 let number = reader.read_u32().await? as usize;
                 let len = reader.read_u32().await? as usize;
 
@@ -124,17 +124,17 @@ impl<R: AsyncRead + Unpin + Send> Deserialize<R> for Packet {
                     image: Bytes::from(buf),
                 })
             }
-            6 => Ok(Self::Guess {
+            7 => Ok(Self::Guess {
                 coordinates: Coordinate::deserialize(reader).await?,
             }),
-            7 => Ok(Self::Guessed {
+            8 => Ok(Self::Guessed {
                 player: reader.read_u32().await? as usize,
             }),
-            8 => Ok(Self::Result {
+            9 => Ok(Self::Result {
                 round: RoundData::deserialize(reader).await?,
             }),
-            9 => Ok(Self::ReturnToLobby),
-            id => Err(Error::Unknown(id)),
+            10 => Ok(Self::ReturnToLobby),
+            tag => Err(Error::Unknown(tag)),
         }
     }
 }

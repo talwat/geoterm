@@ -9,12 +9,11 @@
 #define BAUD 38400
 #define IMAGE_W 320
 #define IMAGE_H 240
-#define IMAGE_SIZE (IMAGE_W * IMAGE_H)
 
 typedef enum { LOBBY_JOIN = 0, LOBBY_RETURN, LOBBY_LEAVE, LOBBY_READY } LobbyAction;
 typedef enum { RED = 0, YELLOW, GREEN, BLUE, MAGENTA } Color;
 typedef enum {
-    PACKET_INIT = 0,
+    PACKET_INIT = 1,
     PACKET_CONFIRMED,
     PACKET_LOBBY_EVENT,
     PACKET_WAITING_STATUS,
@@ -24,7 +23,7 @@ typedef enum {
     PACKET_GUESSED,
     PACKET_RESULT,
     PACKET_RETURN_TO_LOBBY
-} PacketType;
+} PacketTag;
 
 typedef struct {
     float longitude;
@@ -100,7 +99,7 @@ typedef union {
 } PacketData;
 
 typedef struct {
-    PacketType id;
+    PacketTag tag;
     PacketData data;
 } Packet;
 

@@ -95,7 +95,7 @@ impl<W: AsyncWrite + Unpin + Send> Serialize<W> for RoundData {
 
 impl<W: AsyncWrite + Unpin + Send> Serialize<W> for Packet {
     async fn serialize(&self, writer: &mut W) -> Result<(), Error> {
-        let id = self.id();
+        let id = self.tag();
         writer.write_u8(id).await?;
 
         match self {
