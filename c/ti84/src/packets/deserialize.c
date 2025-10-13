@@ -46,8 +46,8 @@ static void deserialize_player(Player *p) {
     if (p->has_guess)
         deserialize_coordinate(&p->guess);
     else {
-        uint8_t pad[2];
-        srl_Read(&srl, pad, 2);
+        uint8_t pad[8];
+        srl_Read(&srl, pad, 8);
     }
 }
 
@@ -72,6 +72,7 @@ static void deserialize_round_data(RoundData *r) {
 }
 
 void deserialize_packet(Packet *p) {
+    memset(p, 0, sizeof(Packet));
     p->tag = (PacketTag)read_u8();
     switch (p->tag) {
     case PACKET_CONFIRMED:

@@ -11,6 +11,18 @@
 #include "serialize.h"
 #include "shared.h"
 
+void send_init_packet() {
+    PacketData data = {.init = {.options = {.color = YELLOW, .user = "tal"}}};
+    Packet packet = {.data = data, .tag = PACKET_INIT};
+    serialize_packet(&packet);
+}
+
+void ready() {
+    PacketData ready = {.waiting_status = {.ready = true}};
+    Packet packet = {.data = ready, .tag = PACKET_WAITING_STATUS};
+    serialize_packet(&packet);
+}
+
 int main(void) {
     os_ClrHome();
     os_SetCursorPos(0, 0);
@@ -35,29 +47,61 @@ int main(void) {
         usb_HandleEvents();
     };
 
-    PacketData data = {.init = {.options = {.color = YELLOW, .user = "tal"}}};
-    Packet packet = {.data = data, .tag = PACKET_INIT};
-    serialize_packet(&packet);
-
-    os_SetCursorPos(3, 0);
-    printf("sent packet with type %d", packet.tag);
-    os_SetCursorPos(4, 0);
-
+    send_init_packet();
+    os_PutStrFull("sent init packet");
     while (!os_GetCSC()) {
         usb_HandleEvents();
     };
 
+    Packet packet;
     if (has_srl_device) {
         deserialize_packet(&packet);
-        printf("got packet of tag %d\n", packet.tag);
-        printf("lobby size %d\n", packet.data.confirmed.lobby.len);
-        printf("name %s\n", packet.data.confirmed.options.user);
     }
+
+    os_SetCursorPos(3, 0);
+    printf("lobby size %d\n", packet.data.confirmed.lobby.len);
+    printf("name %s\n", packet.data.confirmed.options.user);
+
+    while (!os_GetCSC()) {
+        usb_HandleEvents();
+    };
+    os_ClrHome();
+
+    ready();
+    os_SetCursorPos(0, 0);
+    os_PutStrFull("ready!");
 
     while (!os_GetCSC()) {
         usb_HandleEvents();
     };
 
-    usb_Cleanup();
-    return 0;
+    while (true) {
+        os_SetCursorPos(1, 0);
+        while (true) {
+            kb_Scan();
+            if (kb_IsDown(kb_KeyEnter))
+                break;
+            if (kb_IsDown(kb_KeyClear)) {
+                usb_Cleanup();
+                return 0; // exit program
+            }
+        }
+
+        if (has_srl_device) {
+            deserialize_packet(&packet);
+        }
+
+        size_t count = 0;
+        for (size_t i = 0; i < 32768; i++) {
+            if (packet.data.round.image[i] != 0) {
+                count++;
+            }
+        }
+
+        printf("image size: %d", count);
+        printf("got packet with tag %d\n", packet.tag);
+        while (!os_GetCSC()) {
+            usb_HandleEvents();
+        }
+    }
 }

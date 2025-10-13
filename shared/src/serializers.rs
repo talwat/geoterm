@@ -72,7 +72,7 @@ impl<W: AsyncWrite + Unpin + Send> Serialize<W> for Player {
         if let Some(guess) = self.guess {
             guess.serialize(writer).await?;
         } else {
-            writer.write_all(&[0; 2]).await?;
+            writer.write_all(&[0; 8]).await?;
         }
 
         Ok(())
