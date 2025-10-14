@@ -11,6 +11,6 @@
 #define MAX_MATCH ((1 << EJ) + 2)
 #define THRESHOLD 2
 
-void lzss_decompress(const uint8_t *input, size_t input_len, uint8_t *output, size_t *out_len);
+void lzss_decompress_draw(const uint8_t *input, size_t input_len);
 
 #endif

@@ -1,5 +1,6 @@
 #include "shared.h"
 #include <device.h>
+#include <stdio.h>
 #include <string.h>
 
 static char IMAGE[32768];
@@ -27,6 +28,22 @@ static float read_f32(void) {
     float f;
     memcpy(&f, &tmp, 4);
     return f;
+}
+
+int read_all(void *buf, size_t len) {
+    uint8_t *ptr = buf;
+    size_t total = 0;
+
+    while (total < len) {
+        int n = srl_Read(&srl, ptr + total, len - total);
+        if (n > 0) {
+            total += n;
+        } else {
+            usb_HandleEvents();
+        }
+    }
+
+    return total;
 }
 
 static void deserialize_client_options(ClientOptions *opt) {
@@ -72,6 +89,7 @@ static void deserialize_round_data(RoundData *r) {
 }
 
 void deserialize_packet(Packet *p) {
+    memset(IMAGE, 0, sizeof(IMAGE));
     memset(p, 0, sizeof(Packet));
     p->tag = (PacketTag)read_u8();
     switch (p->tag) {
@@ -92,7 +110,7 @@ void deserialize_packet(Packet *p) {
         p->data.round.number = read_u32();
         p->data.round.image_len = read_u32();
         p->data.round.image = IMAGE;
-        srl_Read(&srl, p->data.round.image, p->data.round.image_len);
+        read_all(p->data.round.image, p->data.round.image_len);
         break;
     case PACKET_GUESSED:
         p->data.guessed.player = read_u32();

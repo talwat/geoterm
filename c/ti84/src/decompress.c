@@ -1,8 +1,9 @@
 #include "decompress.h"
 #include <stddef.h>
 #include <stdint.h>
+#include <graphx.h>
 
-void lzss_decompress(const uint8_t *input, size_t input_len, uint8_t *output, size_t *out_len) {
+void lzss_decompress_draw(const uint8_t *input, size_t input_len) {
     uint8_t window[N];
     size_t r = N - MAX_MATCH;
     for (size_t i = 0; i < r; i++)
@@ -11,14 +12,32 @@ void lzss_decompress(const uint8_t *input, size_t input_len, uint8_t *output, si
     size_t in_pos = 0;
     size_t out_pos = 0;
 
+    // screen position
+    uint16_t x = 0;
+    uint8_t y = 0;
+
     while (in_pos < input_len) {
         uint8_t flags = input[in_pos++];
         for (int i = 0; i < 8 && in_pos < input_len; i++) {
             if (flags & 1) {
                 uint8_t c = input[in_pos++];
-                output[out_pos++] = c;
+                // draw pixel
+                gfx_SetColor(c);
+                gfx_SetPixel(x, y);
+
+                // advance screen position
+                x++;
+                if (x >= GFX_LCD_WIDTH) {
+                    x = 0;
+                    y++;
+                    if (y >= GFX_LCD_HEIGHT)
+                        return;  // stop if screen full
+                }
+
+                // update window
                 window[r] = c;
                 r = (r + 1) % N;
+                out_pos++;
             } else {
                 if (in_pos + 1 >= input_len)
                     break;
@@ -30,14 +49,23 @@ void lzss_decompress(const uint8_t *input, size_t input_len, uint8_t *output, si
 
                 for (int j = 0; j < length; j++) {
                     uint8_t c = window[(offset + j) % N];
-                    output[out_pos++] = c;
+                    gfx_SetColor(c);
+                    gfx_SetPixel(x, y);
+
+                    x++;
+                    if (x >= GFX_LCD_WIDTH) {
+                        x = 0;
+                        y++;
+                        if (y >= GFX_LCD_HEIGHT)
+                            return;
+                    }
+
                     window[r] = c;
                     r = (r + 1) % N;
+                    out_pos++;
                 }
             }
             flags >>= 1;
         }
     }
-
-    *out_len = out_pos;
 }

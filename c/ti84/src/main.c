@@ -7,6 +7,8 @@
 #include <ti/screen.h>
 
 #include "deserialize.h"
+#include "graphx.h"
+#include "decompress.h"
 #include "device.h"
 #include "serialize.h"
 #include "shared.h"
@@ -68,6 +70,7 @@ int main(void) {
     os_ClrHome();
 
     ready();
+    os_ClrHome();
     os_SetCursorPos(0, 0);
     os_PutStrFull("ready!");
 
@@ -75,33 +78,41 @@ int main(void) {
         usb_HandleEvents();
     };
 
-    while (true) {
-        os_SetCursorPos(1, 0);
-        while (true) {
-            kb_Scan();
-            if (kb_IsDown(kb_KeyEnter))
-                break;
-            if (kb_IsDown(kb_KeyClear)) {
-                usb_Cleanup();
-                return 0; // exit program
-            }
-        }
-
+    os_SetCursorPos(1, 0);
+    do {
         if (has_srl_device) {
             deserialize_packet(&packet);
+        } else {
+            break;
         }
 
-        size_t count = 0;
-        for (size_t i = 0; i < 32768; i++) {
-            if (packet.data.round.image[i] != 0) {
-                count++;
-            }
+        switch (packet.tag) {
+        case PACKET_LOBBY_EVENT:
+            printf("lobby event\n");
+            break;
+        case PACKET_ROUND_LOADING:
+            printf("loading...\n");
+            break;
+        case PACKET_ROUND:
+            printf("round!\n");
+            break;
         }
 
-        printf("image size: %d", count);
-        printf("got packet with tag %d\n", packet.tag);
         while (!os_GetCSC()) {
             usb_HandleEvents();
         }
+    } while (packet.tag != PACKET_ROUND);
+
+    os_ClrHome();
+    gfx_Begin();
+    gfx_ZeroScreen();
+    lzss_decompress_draw(packet.data.round.image, packet.data.round.image_len);
+    
+    while (!os_GetCSC()) {
+        usb_HandleEvents();
     }
+
+    gfx_End();
+    usb_Cleanup();
+    return 0;
 }
