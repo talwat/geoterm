@@ -1,4 +1,4 @@
-use shared::{BufferedSplitExt, LOCALHOST, PacketReadExt, serializers::Serialize};
+use shared::{BufferedSplitExt, LOCALHOST, Packet, PacketReadExt, serializers::Serialize};
 use tokio::{io, net::TcpStream};
 use tokio_serial::SerialStream;
 
@@ -15,7 +15,11 @@ impl TCP {
         loop {
             match reader.read_packet().await {
                 Ok(packet) => {
-                    eprintln!("transponder: client-bound tcp packet: {packet:?}");
+                    if matches!(&packet, Packet::Round { .. }) {
+                        eprintln!("transponder: round packet");
+                    } else {
+                        eprintln!("transponder: client-bound tcp packet: {packet:?}");
+                    }
                     packet.serialize(&mut writer).await?;
                 }
                 Err(error) => {

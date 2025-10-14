@@ -3,6 +3,6 @@
 
 #include "shared.h"
 
-void deserialize_packet(Packet *p);
+bool deserialize_packet(Packet *p);
 
 #endif // DESERIALIZE_H

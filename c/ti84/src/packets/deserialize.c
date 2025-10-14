@@ -1,9 +1,9 @@
 #include "shared.h"
 #include <device.h>
+#include <graphx.h>
 #include <stdio.h>
 #include <string.h>
 
-static char IMAGE[32768];
 static LobbyClient LOBBY[16];
 static Player PLAYERS[16];
 
@@ -88,10 +88,17 @@ static void deserialize_round_data(RoundData *r) {
         deserialize_player(&r->players[i]);
 }
 
-void deserialize_packet(Packet *p) {
-    memset(IMAGE, 0, sizeof(IMAGE));
-    memset(p, 0, sizeof(Packet));
-    p->tag = (PacketTag)read_u8();
+bool deserialize_packet(Packet *p) {
+    uint8_t tag;
+    int n = srl_Read(&srl, &tag, 1);
+    if (n <= 0) {
+        return false;
+    }
+
+    p->tag = tag;
+    for (volatile int i = 0; i < 50000; i++)
+        usb_HandleEvents();
+
     switch (p->tag) {
     case PACKET_CONFIRMED:
         p->data.confirmed.id = read_u32();
@@ -109,8 +116,8 @@ void deserialize_packet(Packet *p) {
     case PACKET_ROUND:
         p->data.round.number = read_u32();
         p->data.round.image_len = read_u32();
-        p->data.round.image = IMAGE;
-        read_all(p->data.round.image, p->data.round.image_len);
+        p->data.round.image = gfx_vbuffer;
+        read_all(p->data.round.image, p->data.round.image_len - 1);
         break;
     case PACKET_GUESSED:
         p->data.guessed.player = read_u32();
@@ -121,4 +128,6 @@ void deserialize_packet(Packet *p) {
     default:
         break;
     }
+
+    return true;
 }

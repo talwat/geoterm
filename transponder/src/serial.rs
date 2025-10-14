@@ -27,7 +27,8 @@ impl Serial {
     }
 
     pub async fn init() -> eyre::Result<Self> {
-        let serial = tokio_serial::new("/dev/cu.usbmodem13010131AE1", 9600).open_native_async()?;
+        let serial =
+            tokio_serial::new("/dev/cu.usbmodem13010131AE1", 9600 * 4).open_native_async()?;
         let (reader, writer) = tokio::io::split(serial);
 
         Ok(Self { reader, writer })

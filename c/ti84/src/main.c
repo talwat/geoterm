@@ -7,9 +7,8 @@
 #include <ti/screen.h>
 
 #include "deserialize.h"
-#include "graphx.h"
-#include "decompress.h"
 #include "device.h"
+#include "graphx.h"
 #include "serialize.h"
 #include "shared.h"
 
@@ -23,6 +22,39 @@ void ready() {
     PacketData ready = {.waiting_status = {.ready = true}};
     Packet packet = {.data = ready, .tag = PACKET_WAITING_STATUS};
     serialize_packet(&packet);
+}
+
+bool wait(Packet *packet, PacketTag target) {
+    while (has_srl_device) {
+        if (!deserialize_packet(packet)) {
+            usb_HandleEvents();
+            continue;
+        }
+
+        if (kb_IsDown(kb_Clear)) {
+            usb_Cleanup();
+            return false;
+        } else {
+            kb_Scan();
+        }
+
+        if (packet->tag == target)
+            return true;
+    }
+}
+
+void init_palette(void) {
+    int idx = 0;
+    for (int r = 0; r < 8; r++) {
+        for (int g = 0; g < 8; g++) {
+            for (int b = 0; b < 4; b++) {
+                uint8_t R = (r * 255) / 7;
+                uint8_t G = (g * 255) / 7;
+                uint8_t B = (b * 255) / 3;
+                gfx_palette[idx++] = gfx_RGBTo1555(R, G, B);
+            }
+        }
+    }
 }
 
 int main(void) {
@@ -44,25 +76,23 @@ int main(void) {
 
     os_SetCursorPos(2, 0);
     os_PutStrFull("init serial! :)");
+    os_SetCursorPos(3, 0);
+    os_PutStrFull("press enter");
 
     while (!os_GetCSC()) {
         usb_HandleEvents();
     };
 
     send_init_packet();
-    os_PutStrFull("sent init packet");
-    while (!os_GetCSC()) {
-        usb_HandleEvents();
-    };
-
     Packet packet;
-    if (has_srl_device) {
-        deserialize_packet(&packet);
-    }
+    if (!wait(&packet, PACKET_CONFIRMED))
+        return 1;
 
-    os_SetCursorPos(3, 0);
+    os_ClrHome();
+    os_SetCursorPos(0, 0);
     printf("lobby size %d\n", packet.data.confirmed.lobby.len);
     printf("name %s\n", packet.data.confirmed.options.user);
+    printf("press enter to ready.\n");
 
     while (!os_GetCSC()) {
         usb_HandleEvents();
@@ -72,42 +102,18 @@ int main(void) {
     ready();
     os_ClrHome();
     os_SetCursorPos(0, 0);
+
     os_PutStrFull("ready!");
+    if (!wait(&packet, PACKET_ROUND_LOADING))
+        return 1;
 
-    while (!os_GetCSC()) {
-        usb_HandleEvents();
-    };
-
-    os_SetCursorPos(1, 0);
-    do {
-        if (has_srl_device) {
-            deserialize_packet(&packet);
-        } else {
-            break;
-        }
-
-        switch (packet.tag) {
-        case PACKET_LOBBY_EVENT:
-            printf("lobby event\n");
-            break;
-        case PACKET_ROUND_LOADING:
-            printf("loading...\n");
-            break;
-        case PACKET_ROUND:
-            printf("round!\n");
-            break;
-        }
-
-        while (!os_GetCSC()) {
-            usb_HandleEvents();
-        }
-    } while (packet.tag != PACKET_ROUND);
-
-    os_ClrHome();
     gfx_Begin();
     gfx_ZeroScreen();
-    lzss_decompress_draw(packet.data.round.image, packet.data.round.image_len);
-    
+    if (!wait(&packet, PACKET_ROUND))
+        return 1;
+
+    init_palette();
+    gfx_SwapDraw();
     while (!os_GetCSC()) {
         usb_HandleEvents();
     }

@@ -16,7 +16,6 @@ use tokio::{
 pub type Writer = BufWriter<OwnedWriteHalf>;
 pub type Reader = BufReader<OwnedReadHalf>;
 
-pub mod compression;
 pub mod deserializers;
 pub mod image;
 pub mod lobby;

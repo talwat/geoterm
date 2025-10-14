@@ -1,8 +1,6 @@
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 use image::{Pixel, Rgb, RgbImage};
 
-use crate::compression::{compress, decompress};
-
 pub const WIDTH: u32 = 320;
 pub const HEIGHT: u32 = 240;
 pub const SIZE: u32 = 320 * 240;
@@ -27,12 +25,10 @@ pub fn encode(image: RgbImage) -> std::io::Result<Bytes> {
         bytes.put_u8(combined);
     }
 
-    compress(&mut bytes);
     Ok(bytes.freeze())
 }
 
 pub fn decode(mut bytes: BytesMut, width: u32, height: u32) -> std::io::Result<RgbImage> {
-    decompress(&mut bytes);
     assert!(width % WIDTH == 0, "width is incorrect!");
     assert!(height % HEIGHT == 0, "height is incorrect!");
 
