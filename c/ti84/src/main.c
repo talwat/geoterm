@@ -25,17 +25,19 @@ void ready() {
 }
 
 bool wait(Packet *packet, PacketTag target) {
-    while (has_srl_device) {
+    while (true) {
+        kb_Scan();
+        if (kb_IsDown(kb_KeyClear)) {
+            usb_Cleanup();
+            return false;
+        }
+
+        if (!has_srl_device)
+            return false;
+
         if (!deserialize_packet(packet)) {
             usb_HandleEvents();
             continue;
-        }
-
-        if (kb_IsDown(kb_Clear)) {
-            usb_Cleanup();
-            return false;
-        } else {
-            kb_Scan();
         }
 
         if (packet->tag == target)
