@@ -11,6 +11,7 @@
 #include "graphx.h"
 #include "serialize.h"
 #include "shared.h"
+#include "map.inc"
 
 void send_init_packet() {
     PacketData data = {.init = {.options = {.color = YELLOW, .user = "tal"}}};
@@ -64,63 +65,77 @@ int main(void) {
     os_SetCursorPos(0, 0);
     os_PutStrFull("geoterm ti84");
 
-    os_SetCursorPos(1, 0);
-    const usb_standard_descriptors_t *desc = srl_GetCDCStandardDescriptors();
-    usb_error_t usb_error = usb_Init(usb_handler, NULL, desc, USB_DEFAULT_INIT_FLAGS);
-    if (usb_error) {
-        usb_Cleanup();
-        os_PutStrFull("usb init error\n");
-        do
-            kb_Scan();
-        while (!kb_IsDown(kb_KeyClear));
-        return 1;
-    }
-
-    os_SetCursorPos(2, 0);
-    os_PutStrFull("init serial! :)");
-    os_SetCursorPos(3, 0);
-    os_PutStrFull("press enter");
-
-    while (!os_GetCSC()) {
-        usb_HandleEvents();
-    };
-
-    send_init_packet();
-    Packet packet;
-    if (!wait(&packet, PACKET_CONFIRMED))
-        return 1;
-
-    os_ClrHome();
-    os_SetCursorPos(0, 0);
-    printf("lobby size %d\n", packet.data.confirmed.lobby.len);
-    printf("name %s\n", packet.data.confirmed.options.user);
-    printf("press enter to ready.\n");
-
-    while (!os_GetCSC()) {
-        usb_HandleEvents();
-    };
-    os_ClrHome();
-
-    ready();
-    os_ClrHome();
-    os_SetCursorPos(0, 0);
-
-    os_PutStrFull("ready!");
-    if (!wait(&packet, PACKET_ROUND_LOADING))
-        return 1;
-
     gfx_Begin();
-    gfx_ZeroScreen();
-    if (!wait(&packet, PACKET_ROUND))
-        return 1;
 
-    init_palette();
-    gfx_SwapDraw();
-    while (!os_GetCSC()) {
-        usb_HandleEvents();
+    gfx_ZeroScreen();
+    uint8_t *dst = gfx_vbuffer;
+    for (int i = 0; i < sizeof(world_map); i++) {
+        uint8_t b = world_map[i];
+        *dst++ = gfx_palette[(b >> 6) & 3];
+        *dst++ = gfx_palette[(b >> 4) & 3];
+        *dst++ = gfx_palette[(b >> 2) & 3];
+        *dst++ = gfx_palette[b & 3];
     }
 
+    while (!os_GetCSC());
     gfx_End();
-    usb_Cleanup();
+
+    // os_SetCursorPos(1, 0);
+    // const usb_standard_descriptors_t *desc = srl_GetCDCStandardDescriptors();
+    // usb_error_t usb_error = usb_Init(usb_handler, NULL, desc, USB_DEFAULT_INIT_FLAGS);
+    // if (usb_error) {
+    //     usb_Cleanup();
+    //     os_PutStrFull("usb init error\n");
+    //     do
+    //         kb_Scan();
+    //     while (!kb_IsDown(kb_KeyClear));
+    //     return 1;
+    // }
+
+    // os_SetCursorPos(2, 0);
+    // os_PutStrFull("init serial! :)");
+    // os_SetCursorPos(3, 0);
+    // os_PutStrFull("press enter");
+
+    // while (!os_GetCSC()) {
+    //     usb_HandleEvents();
+    // };
+
+    // send_init_packet();
+    // Packet packet;
+    // if (!wait(&packet, PACKET_CONFIRMED))
+    //     return 1;
+
+    // os_ClrHome();
+    // os_SetCursorPos(0, 0);
+    // printf("lobby size %d\n", packet.data.confirmed.lobby.len);
+    // printf("name %s\n", packet.data.confirmed.options.user);
+    // printf("press enter to ready.\n");
+
+    // while (!os_GetCSC()) {
+    //     usb_HandleEvents();
+    // };
+    // os_ClrHome();
+
+    // ready();
+    // os_ClrHome();
+    // os_SetCursorPos(0, 0);
+
+    // os_PutStrFull("ready!");
+    // if (!wait(&packet, PACKET_ROUND_LOADING))
+    //     return 1;
+
+    // gfx_Begin();
+    // gfx_ZeroScreen();
+    // if (!wait(&packet, PACKET_ROUND))
+    //     return 1;
+
+    // init_palette();
+    // gfx_SwapDraw();
+    // while (!os_GetCSC()) {
+        // usb_HandleEvents();
+    // }
+
+    // usb_Cleanup();
     return 0;
 }
