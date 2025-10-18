@@ -3,8 +3,8 @@ import sys
 
 def main(input, output):
     img = Image.open(input).convert("RGBA")
-    if img.size != (320, 160):
-        img = img.resize((320, 160), Image.LANCZOS)
+    if img.size != (320, 240):
+        img = img.resize((320, 240), Image.LANCZOS)
 
     pixels = img.load()
     data = bytearray()

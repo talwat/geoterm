@@ -3,14 +3,14 @@ use shared::Coordinate;
 
 use crate::error::Error;
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Image {
     pub src: String,
     pub height: u16,
     pub width: u16,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Data {
     pub image: Image,
     pub coordinates: shared::Coordinate,

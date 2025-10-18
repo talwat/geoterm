@@ -134,6 +134,7 @@ impl<R: AsyncRead + Unpin + Send> Deserialize<R> for Packet {
                 round: RoundData::deserialize(reader).await?,
             }),
             10 => Ok(Self::ReturnToLobby),
+            11 => Ok(Self::SoftQuit),
             tag => Err(Error::Unknown(tag)),
         }
     }

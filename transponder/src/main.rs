@@ -1,16 +1,23 @@
 use crate::{serial::Serial, tcp::TCP};
-use tokio::select;
+use tokio::{io, select, sync::mpsc};
+use tokio_serial::SerialStream;
 
 pub mod serial;
 pub mod tcp;
 
+pub enum Message {
+    Serial(io::WriteHalf<SerialStream>),
+}
+
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> eyre::Result<()> {
-    let tcp = TCP::init().await?;
-    let serial = Serial::init().await?;
+    let (tx, rx) = mpsc::channel(8);
 
-    let serial_handle = tokio::spawn(Serial::listen(serial.reader, tcp.writer));
-    let tcp_handle = tokio::spawn(TCP::listen(tcp.reader, serial.writer));
+    let (tcp, writer) = TCP::init(rx).await?;
+    let serial = Serial::new(writer, tx).await;
+
+    let serial_handle = tokio::spawn(serial.listen());
+    let tcp_handle = tokio::spawn(tcp.listen());
 
     select! {
         result = serial_handle => {

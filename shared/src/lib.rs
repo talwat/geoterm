@@ -21,7 +21,7 @@ pub mod image;
 pub mod lobby;
 pub mod serializers;
 
-pub const PORT: u16 = 3000;
+pub const PORT: u16 = 4000;
 pub const LOCALHOST: SocketAddrV4 = SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), PORT);
 
 #[derive(Clone, Debug, PartialEq)]
@@ -75,7 +75,7 @@ pub struct ClientOptions {
     pub user: String,
 }
 
-#[derive(Debug, PartialEq, Clone, Copy)]
+#[derive(Debug, PartialEq, Clone, Copy, Default)]
 pub struct Coordinate {
     pub longitude: f32,
     pub latitude: f32,
@@ -123,6 +123,7 @@ pub enum Packet {
         round: RoundData,
     },
     ReturnToLobby,
+    SoftQuit,
 }
 
 impl Packet {
@@ -138,6 +139,7 @@ impl Packet {
             Packet::Guessed { .. } => 8,
             Packet::Result { .. } => 9,
             Packet::ReturnToLobby => 10,
+            Packet::SoftQuit => 11,
         }
     }
 }

@@ -41,6 +41,10 @@ impl Client {
         Ok(())
     }
 
+    pub fn initialized(&self) -> bool {
+        self.options.is_some()
+    }
+
     pub async fn new(
         id: usize,
         tx: mpsc::Sender<Message>,

@@ -22,11 +22,11 @@ pub enum State {
 }
 
 pub struct Server {
+    pub clients: Vec<Client>,
+    pub state: State,
     pub tx: mpsc::Sender<Message>,
     rx: mpsc::Receiver<Message>,
     listener: JoinHandle<Result<(), Error>>,
-    pub clients: Vec<Client>,
-    pub state: State,
     id_counter: usize,
 }
 
@@ -83,6 +83,13 @@ impl Server {
             .await;
     }
 
+    pub async fn verify(&mut self, id: usize) {
+        if self.clients.iter().filter(|x| x.initialized()).count() < 2 {
+            eprintln!("server: not enough players, returning to lobby...");
+            self.return_to_lobby(id).await;
+        }
+    }
+
     pub async fn kick(&mut self, client: usize, error: shared::Error) {
         eprintln!("server(client {client}): removed: {error}");
         if let Some(index) = self.clients.iter().position(|x| x.id == client) {
@@ -92,9 +99,8 @@ impl Server {
         if self.state == State::Lobby {
             self.broadcast_lobby(client, shared::lobby::Action::Leave)
                 .await;
-        } else if self.clients.iter().filter(|x| x.options.is_some()).count() < 2 {
-            eprintln!("server: not enough players, returning to lobby...");
-            self.return_to_lobby(client).await;
+        } else {
+            self.verify(client).await;
         }
     }
 
@@ -102,7 +108,7 @@ impl Server {
         let futures = self
             .clients
             .iter_mut()
-            .filter(|client| client.options.is_some() && !exclude.is_some_and(|x| client.id == x))
+            .filter(|client| client.initialized() && !exclude.is_some_and(|x| client.id == x))
             .map(|client| client.write(packet.clone()));
 
         join_all(futures).await;
@@ -110,7 +116,7 @@ impl Server {
 
     pub fn ready(&self) -> bool {
         let ready = self.clients.iter().filter(|x| x.ready).count();
-        ready >= 2 && ready == self.clients.len()
+        ready >= 2 && ready == self.clients.iter().filter(|x| x.initialized()).count()
     }
 
     pub async fn lobby(&mut self) -> shared::lobby::Clients {
@@ -118,6 +124,9 @@ impl Server {
             .clients
             .iter()
             .filter_map(|x| {
+                if !x.initialized() {
+                    return None;
+                }
                 Some(shared::lobby::Client {
                     id: x.id,
                     ready: x.ready,
@@ -176,6 +185,14 @@ impl Server {
                     }
                     Message::Connection(mut stream, _addr) => stream.shutdown().await?,
                     Message::Packet(id, packet) => match packet {
+                        Ok(Packet::ReturnToLobby) => {
+                            eprintln!("server(client {id}): return to lobby");
+                            self.return_to_lobby(id).await;
+                        }
+                        Ok(Packet::SoftQuit) => {
+                            self[id].options = None;
+                            self.verify(id).await;
+                        }
                         Ok(Packet::Guess { coordinates }) => {
                             eprintln!("server(client {id}): guessed");
                             round[id].guess = Some(coordinates);

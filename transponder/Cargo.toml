@@ -6,7 +6,7 @@ edition = "2024"
 [dependencies]
 shared = { path = "../shared" }
 eyre = "0.6.12"
-tokio = { version = "1.47.1", features = ["io-util", "rt", "macros", "net", "sync"] }
+tokio = { version = "1.47.1", features = ["io-util", "rt", "macros", "net", "sync", "time"] }
 tokio-serial = "5.4.5"
 
 [build-dependencies]

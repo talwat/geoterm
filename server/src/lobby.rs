@@ -31,6 +31,10 @@ pub async fn handler(server: &mut Server, message: Message) -> Result<(), Error>
                     server.clients.iter_mut().for_each(|x| x.ready = false);
                 }
             }
+            Ok(Packet::SoftQuit) => {
+                eprintln!("server(client {id}): soft quit");
+                server[id].options = None;
+            }
             Ok(other) => server.kick(id, shared::Error::Illegal(other)).await,
             Err(error) => server.kick(id, error).await,
         },

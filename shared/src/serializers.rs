@@ -135,6 +135,7 @@ impl<W: AsyncWrite + Unpin + Send> Serialize<W> for Packet {
                 round.serialize(writer).await?;
             }
             Packet::ReturnToLobby => {}
+            Packet::SoftQuit => {}
         }
 
         writer.flush().await?;
