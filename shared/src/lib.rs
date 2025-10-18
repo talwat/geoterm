@@ -77,8 +77,11 @@ pub struct ClientOptions {
 
 #[derive(Debug, PartialEq, Clone, Copy, Default)]
 pub struct Coordinate {
-    pub longitude: f32,
+    /// North-South, like the "y".
     pub latitude: f32,
+
+    /// East-West, like the "x".
+    pub longitude: f32,
 }
 
 #[derive(Debug, PartialEq, Clone, Copy)]
@@ -122,7 +125,7 @@ pub enum Packet {
     Result {
         round: RoundData,
     },
-    ReturnToLobby,
+    RequestGameEnd,
     SoftQuit,
 }
 
@@ -138,7 +141,7 @@ impl Packet {
             Packet::Guess { .. } => 7,
             Packet::Guessed { .. } => 8,
             Packet::Result { .. } => 9,
-            Packet::ReturnToLobby => 10,
+            Packet::RequestGameEnd => 10,
             Packet::SoftQuit => 11,
         }
     }

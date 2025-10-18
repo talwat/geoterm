@@ -133,7 +133,7 @@ impl<R: AsyncRead + Unpin + Send> Deserialize<R> for Packet {
             9 => Ok(Self::Result {
                 round: RoundData::deserialize(reader).await?,
             }),
-            10 => Ok(Self::ReturnToLobby),
+            10 => Ok(Self::RequestGameEnd),
             11 => Ok(Self::SoftQuit),
             tag => Err(Error::Unknown(tag)),
         }

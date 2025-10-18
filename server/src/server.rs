@@ -185,7 +185,7 @@ impl Server {
                     }
                     Message::Connection(mut stream, _addr) => stream.shutdown().await?,
                     Message::Packet(id, packet) => match packet {
-                        Ok(Packet::ReturnToLobby) => {
+                        Ok(Packet::RequestGameEnd) => {
                             eprintln!("server(client {id}): return to lobby");
                             self.return_to_lobby(id).await;
                         }
@@ -194,7 +194,7 @@ impl Server {
                             self.verify(id).await;
                         }
                         Ok(Packet::Guess { coordinates }) => {
-                            eprintln!("server(client {id}): guessed");
+                            eprintln!("server(client {id}): guessed at {coordinates:?}");
                             round[id].guess = Some(coordinates);
                             if round.players.iter().all(|x| x.guess.is_some()) {
                                 self.tx.send(Message::GuessingComplete).await?;
@@ -210,6 +210,11 @@ impl Server {
                 },
                 State::Results(round) => match message {
                     Message::Packet(id, packet) => match packet {
+                        Ok(Packet::RequestGameEnd) => {
+                            eprintln!("server(client {id}): returning to lobby...");
+                            eprintln!("-> WARNING: packet RequestGameEnd was used.");
+                            self.return_to_lobby(id).await;
+                        }
                         Ok(Packet::WaitingStatus { ready }) => {
                             if !ready {
                                 eprintln!("server(client {id}): returning to lobby...");

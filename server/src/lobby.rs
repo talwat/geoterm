@@ -28,7 +28,6 @@ pub async fn handler(server: &mut Server, message: Message) -> Result<(), Error>
 
                 if server.ready() {
                     server.state = round::new(server, None).await?;
-                    server.clients.iter_mut().for_each(|x| x.ready = false);
                 }
             }
             Ok(Packet::SoftQuit) => {

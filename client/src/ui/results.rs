@@ -5,7 +5,7 @@ use ratatui::{
     symbols,
     widgets::{
         Block, Widget,
-        canvas::{self, Canvas, Circle, Map},
+        canvas::{self, Canvas, Map, Points},
     },
 };
 use shared::lobby::Clients;
@@ -50,13 +50,18 @@ impl Widget for &Results {
                         .options;
                     let guess = player.guess.unwrap();
 
-                    ctx.draw(&Circle {
-                        x: guess.longitude as f64,
-                        y: guess.latitude as f64,
-                        radius: 4.0,
+                    ctx.draw(&Points {
+                        coords: &[(guess.longitude as f64, guess.latitude as f64)],
                         color: convert_color(options.color),
                     });
                 }
+                ctx.draw(&Points {
+                    coords: &[(
+                        self.data.answer.longitude as f64,
+                        self.data.answer.latitude as f64,
+                    )],
+                    color: Color::LightRed,
+                });
             })
             .block(block)
             .render(area, buf);

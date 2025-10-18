@@ -7,6 +7,7 @@ use shared::Player;
 
 pub async fn new(server: &mut Server, old: Option<&RoundData>) -> Result<State, Error> {
     eprintln!("server: initializing round");
+    server.clients.iter_mut().for_each(|x| x.ready = false);
     let lobby = server.lobby().await;
     server
         .broadcast(&shared::Packet::RoundLoading { lobby }, None)

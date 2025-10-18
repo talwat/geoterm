@@ -7,6 +7,7 @@ use shared::{
     lobby::Clients,
 };
 use tokio::{
+    io::AsyncWriteExt,
     net::TcpStream,
     sync::mpsc::{self, Receiver, Sender},
     task::JoinHandle,
@@ -41,6 +42,7 @@ impl Client {
             tx.send(Message::Packet(packet)).await?;
         }
 
+        tx.send(Message::Quit).await?;
         Ok(())
     }
 
@@ -109,7 +111,7 @@ async fn main() -> eyre::Result<()> {
     let mut players: Clients = lobby;
 
     'main: loop {
-        while let Some(message) = client.rx.recv().await {
+        while let Some(mut message) = client.rx.recv().await {
             if message == Message::Quit {
                 break 'main;
             }
@@ -117,6 +119,26 @@ async fn main() -> eyre::Result<()> {
             if message == Message::Resize {
                 ui.render(&mut terminal, &state)?;
                 continue;
+            }
+
+            if let Message::Packet(packet) = &mut message {
+                if let Packet::LobbyEvent {
+                    action,
+                    user: _,
+                    lobby,
+                } = packet
+                {
+                    if *action == shared::lobby::Action::Return {
+                        state = State::Lobby(lobby::Lobby {
+                            clients: std::mem::take(lobby),
+                            username: client.options.user.clone(),
+                            ready: false,
+                            id: client.id,
+                        });
+
+                        continue;
+                    }
+                }
             }
 
             match &mut state {
@@ -201,14 +223,31 @@ async fn main() -> eyre::Result<()> {
                                 data: round,
                                 lobby: players.clone(),
                             });
-
-                            break;
                         }
                         _ => continue,
                     },
                     _ => continue,
                 },
-                State::Results(_results) => match message {
+                State::Results(..) => match message {
+                    Message::Ready => {
+                        client
+                            .writer
+                            .write_packet(Packet::WaitingStatus { ready: true })
+                            .await?;
+                    }
+                    Message::Key(KeyCode::Char('l')) => {
+                        client
+                            .writer
+                            .write_packet(Packet::WaitingStatus { ready: false })
+                            .await?;
+                    }
+                    Message::Packet(packet) => match packet {
+                        Packet::RoundLoading { lobby } => {
+                            players = lobby;
+                            state = State::Loading
+                        }
+                        _ => continue,
+                    },
                     _ => continue,
                 },
             }
@@ -217,5 +256,6 @@ async fn main() -> eyre::Result<()> {
         }
     }
 
+    client.writer.shutdown().await?;
     Ok(())
 }

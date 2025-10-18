@@ -134,7 +134,7 @@ impl<W: AsyncWrite + Unpin + Send> Serialize<W> for Packet {
             Packet::Result { round } => {
                 round.serialize(writer).await?;
             }
-            Packet::ReturnToLobby => {}
+            Packet::RequestGameEnd => {}
             Packet::SoftQuit => {}
         }
 
