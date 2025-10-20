@@ -1,6 +1,6 @@
 use tokio::io::{AsyncWrite, AsyncWriteExt};
 
-use crate::{ClientOptions, Coordinate, Error, Packet, Player, RoundData, lobby};
+use crate::{ClientOptions, Coordinate, Error, Packet, Player, RoundResult, lobby};
 
 trait ToFixed<const LEN: usize> {
     fn fixed(&self) -> [u8; LEN];
@@ -67,6 +67,7 @@ impl<W: AsyncWrite + Unpin + Send> Serialize<W> for Player {
     async fn serialize(&self, writer: &mut W) -> Result<(), Error> {
         writer.write_u32(self.id as u32).await?;
         writer.write_u32(self.points as u32).await?;
+        writer.write_u32(self.delta as u32).await?;
 
         writer.write_u8(self.guess.is_some() as u8).await?;
         if let Some(guess) = self.guess {
@@ -79,7 +80,7 @@ impl<W: AsyncWrite + Unpin + Send> Serialize<W> for Player {
     }
 }
 
-impl<W: AsyncWrite + Unpin + Send> Serialize<W> for RoundData {
+impl<W: AsyncWrite + Unpin + Send> Serialize<W> for RoundResult {
     async fn serialize(&self, writer: &mut W) -> Result<(), Error> {
         writer.write_u32(self.number as u32).await?;
         self.answer.serialize(writer).await?;
@@ -131,8 +132,8 @@ impl<W: AsyncWrite + Unpin + Send> Serialize<W> for Packet {
             Packet::Guessed { player } => {
                 writer.write_u32(*player as u32).await?;
             }
-            Packet::Result { round } => {
-                round.serialize(writer).await?;
+            Packet::Result { results: result } => {
+                result.serialize(writer).await?;
             }
             Packet::RequestGameEnd => {}
             Packet::SoftQuit => {}

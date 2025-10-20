@@ -28,7 +28,6 @@ pub enum Message {
 }
 
 struct Client {
-    ready: bool,
     id: usize,
     options: ClientOptions,
     writer: Writer,
@@ -65,7 +64,6 @@ impl Client {
         };
 
         let client = Self {
-            ready: false,
             id,
             options,
             writer,
@@ -104,7 +102,7 @@ async fn main() -> eyre::Result<()> {
     let mut terminal = ratatui::init();
     let mut state = State::Lobby(lobby::Lobby {
         id: client.id,
-        ready: client.ready,
+        ready: false,
         clients: client.lobby.clone(),
         username: "bobby".to_string(),
     });

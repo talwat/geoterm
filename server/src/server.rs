@@ -4,7 +4,7 @@ use std::{
 };
 
 use futures::future::join_all;
-use shared::{LOCALHOST, Packet, RoundData};
+use shared::{LOCALHOST, Packet, RoundResult};
 use tokio::{
     io::AsyncWriteExt,
     net::{TcpListener, TcpStream},
@@ -17,8 +17,8 @@ use crate::{Message, client::Client, error::Error, lobby, round};
 #[derive(Debug, PartialEq)]
 pub enum State {
     Lobby,
-    Round(RoundData),
-    Results(RoundData),
+    Round(RoundResult),
+    Results(RoundResult),
 }
 
 pub struct Server {
@@ -160,19 +160,13 @@ impl Server {
 
     pub async fn broadcast_lobby(&mut self, id: usize, action: shared::lobby::Action) {
         let clients = self.lobby().await;
-        let exclude = if action == shared::lobby::Action::Return {
-            None
-        } else {
-            Some(id)
-        };
-
         self.broadcast(
             &Packet::LobbyEvent {
                 action,
                 user: id,
                 lobby: clients,
             },
-            exclude,
+            None,
         )
         .await;
     }
@@ -206,7 +200,8 @@ impl Server {
                         round::results(&mut round);
 
                         self.state = State::Results(round.clone());
-                        self.broadcast(&Packet::Result { round }, None).await;
+                        self.broadcast(&Packet::Result { results: round }, None)
+                            .await;
                         eprintln!("server: round finished, showing results");
                     }
                     Message::Connection(mut stream, _addr) => stream.shutdown().await?,
@@ -235,20 +230,15 @@ impl Server {
                     Message::Packet(id, packet) => match packet {
                         Ok(Packet::RequestGameEnd) => {
                             eprintln!("server(client {id}): returning to lobby...");
-                            eprintln!("-> WARNING: packet RequestGameEnd was used.");
                             self.return_to_lobby(id).await;
                         }
                         Ok(Packet::WaitingStatus { ready }) => {
-                            if !ready {
-                                eprintln!("server(client {id}): returning to lobby...");
-                                self.return_to_lobby(id).await;
-                                continue;
-                            }
-
                             eprintln!("server(client {id}): ready");
                             let round = round.clone();
 
                             self[id].ready = ready;
+                            self.broadcast_lobby(id, shared::lobby::Action::Ready).await;
+
                             if self.ready() {
                                 eprintln!("server: all ready, starting new round");
                                 self.state = round::new(self, Some(&round)).await?;

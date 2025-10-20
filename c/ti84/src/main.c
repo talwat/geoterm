@@ -40,7 +40,7 @@ int init() {
         usb_HandleEvents();
     };
 
-    PacketData data = {.init = {.options = {.color = YELLOW, .user = "tal"}}};
+    PacketData data = {.init = {.options = {.color = GREEN, .user = "tal"}}};
     Packet packet = {.data = data, .tag = PACKET_INIT};
     serialize_packet(&packet);
 

@@ -59,6 +59,7 @@ static void deserialize_coordinate(Coordinate *c) {
 static void deserialize_player(Player *p) {
     p->id = read_u32();
     p->points = read_u32();
+    p->delta = read_u32();
     p->has_guess = read_u8();
     if (p->has_guess)
         deserialize_coordinate(&p->guess);
@@ -79,7 +80,7 @@ static void deserialize_clients(Clients *lobby) {
     }
 }
 
-static void deserialize_round_data(RoundData *r) {
+static void deserialize_result(RoundData *r) {
     r->number = read_u32();
     deserialize_coordinate(&r->answer);
     r->players_len = read_u32();
@@ -123,7 +124,7 @@ bool deserialize_packet(Packet *p) {
         p->data.guessed.player = read_u32();
         break;
     case PACKET_RESULT:
-        deserialize_round_data(&p->data.result.round);
+        deserialize_result(&p->data.result.round);
         break;
     default:
         break;

@@ -13,14 +13,14 @@ use shared::lobby::Clients;
 
 pub struct Results {
     pub id: usize,
-    pub data: shared::RoundData,
+    pub ready: bool,
+    pub data: shared::RoundResult,
     pub lobby: Clients,
 }
 
 fn convert_color(c: shared::Color) -> Color {
     match c {
         shared::Color::Red => Color::Red,
-        shared::Color::Yellow => Color::Yellow,
         shared::Color::Green => Color::Green,
         shared::Color::Blue => Color::Blue,
         shared::Color::Magenta => Color::Magenta,
@@ -65,7 +65,7 @@ impl Widget for &Results {
                         self.data.answer.longitude as f64,
                         self.data.answer.latitude as f64,
                     )],
-                    color: Color::LightRed,
+                    color: Color::LightYellow,
                 });
             })
             .block(
@@ -90,7 +90,10 @@ impl Widget for &Results {
                 }
                 .into();
 
-                line.push_span(Span::raw(format!(" - {}", x.points)));
+                line.push_span(Span::raw(format!(" - {} [+{}]", x.points, x.delta)));
+                if self.lobby[x.id].ready {
+                    line.push_span(" (ready)");
+                }
                 line
             })
             .collect();

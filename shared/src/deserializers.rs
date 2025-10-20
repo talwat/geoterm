@@ -1,5 +1,5 @@
 use crate::{
-    ClientOptions, Color, Coordinate, Error, Packet, Player, RoundData,
+    ClientOptions, Color, Coordinate, Error, Packet, Player, RoundResult,
     lobby::{self, Clients},
 };
 use bytes::Bytes;
@@ -45,7 +45,8 @@ impl<R: AsyncRead + Unpin + Send> Deserialize<R> for Coordinate {
 impl<R: AsyncRead + Unpin + Send> Deserialize<R> for Player {
     async fn deserialize(reader: &mut R) -> Result<Self, Error> {
         let id = reader.read_u32().await? as usize;
-        let points = reader.read_u32().await? as u64;
+        let points = reader.read_u32().await?;
+        let delta = reader.read_u32().await?;
         let has_guess = reader.read_u8().await? != 0;
         let guess = if has_guess {
             Some(Coordinate::deserialize(reader).await?)
@@ -55,11 +56,16 @@ impl<R: AsyncRead + Unpin + Send> Deserialize<R> for Player {
             None
         };
 
-        Ok(Self { id, points, guess })
+        Ok(Self {
+            id,
+            points,
+            delta,
+            guess,
+        })
     }
 }
 
-impl<R: AsyncRead + Unpin + Send> Deserialize<R> for RoundData {
+impl<R: AsyncRead + Unpin + Send> Deserialize<R> for RoundResult {
     async fn deserialize(reader: &mut R) -> Result<Self, Error> {
         let number = reader.read_u32().await? as usize;
         let answer = Coordinate::deserialize(reader).await?;
@@ -70,7 +76,7 @@ impl<R: AsyncRead + Unpin + Send> Deserialize<R> for RoundData {
             players.push(Player::deserialize(reader).await?);
         }
 
-        Ok(RoundData {
+        Ok(RoundResult {
             number,
             answer,
             players,
@@ -131,7 +137,7 @@ impl<R: AsyncRead + Unpin + Send> Deserialize<R> for Packet {
                 player: reader.read_u32().await? as usize,
             }),
             9 => Ok(Self::Result {
-                round: RoundData::deserialize(reader).await?,
+                results: RoundResult::deserialize(reader).await?,
             }),
             10 => Ok(Self::RequestGameEnd),
             11 => Ok(Self::SoftQuit),

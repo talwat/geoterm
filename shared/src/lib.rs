@@ -25,7 +25,7 @@ pub const PORT: u16 = 4000;
 pub const LOCALHOST: SocketAddrV4 = SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), PORT);
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct RoundData {
+pub struct RoundResult {
     pub number: usize,
     pub answer: Coordinate,
     pub players: Vec<Player>,
@@ -39,7 +39,7 @@ use crate::{
     serializers::Serialize,
 };
 
-impl Index<usize> for RoundData {
+impl Index<usize> for RoundResult {
     type Output = Player;
 
     fn index(&self, index: usize) -> &Self::Output {
@@ -50,7 +50,7 @@ impl Index<usize> for RoundData {
     }
 }
 
-impl IndexMut<usize> for RoundData {
+impl IndexMut<usize> for RoundResult {
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
         self.players
             .iter_mut()
@@ -63,7 +63,6 @@ impl IndexMut<usize> for RoundData {
 #[repr(u8)]
 pub enum Color {
     Red = 0,
-    Yellow,
     Green,
     Blue,
     Magenta,
@@ -87,7 +86,8 @@ pub struct Coordinate {
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub struct Player {
     pub guess: Option<Coordinate>,
-    pub points: u64,
+    pub points: u32,
+    pub delta: u32,
     pub id: usize,
 }
 
@@ -123,7 +123,7 @@ pub enum Packet {
         player: usize,
     },
     Result {
-        round: RoundData,
+        results: RoundResult,
     },
     RequestGameEnd,
     SoftQuit,

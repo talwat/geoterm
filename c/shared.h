@@ -11,7 +11,7 @@
 #define IMAGE_H 240
 
 typedef enum { LOBBY_JOIN = 0, LOBBY_RETURN, LOBBY_LEAVE, LOBBY_READY } LobbyAction;
-typedef enum { RED = 0, YELLOW, GREEN, BLUE, MAGENTA } Color;
+typedef enum { RED = 0, GREEN, BLUE, MAGENTA } Color;
 typedef enum {
     PACKET_INIT = 1,
     PACKET_CONFIRMED,
@@ -22,7 +22,7 @@ typedef enum {
     PACKET_GUESS,
     PACKET_GUESSED,
     PACKET_RESULT,
-    PACKET_RETURN_TO_LOBBY
+    PACKET_REQUEST_GAME_END
 } PacketTag;
 
 typedef struct {
@@ -49,7 +49,8 @@ typedef struct {
 typedef struct {
     bool has_guess;
     Coordinate guess;
-    uint64_t points;
+    uint32_t points;
+    uint32_t delta;
     size_t id;
 } Player;
 

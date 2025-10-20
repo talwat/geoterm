@@ -145,11 +145,14 @@ impl Handler for Round {
                     }
                 }
                 Packet::Guessed { player: _ } => Result::Continue,
-                Packet::Result { round } => Result::ChangeState(State::Results(results::Results {
-                    id: client.id,
-                    data: round,
-                    lobby: client.lobby.clone(),
-                })),
+                Packet::Result { results } => {
+                    Result::ChangeState(State::Results(results::Results {
+                        ready: false,
+                        id: client.id,
+                        data: results,
+                        lobby: client.lobby.clone(),
+                    }))
+                }
                 _ => Result::Unhandled,
             },
             _ => Result::Unhandled,
@@ -161,17 +164,15 @@ impl Handler for Results {
     async fn handle(&mut self, message: Message, client: &mut Client) -> eyre::Result<Result> {
         Ok(match message {
             Message::Ready => {
+                self.ready = !self.ready;
                 client
                     .writer
-                    .write_packet(Packet::WaitingStatus { ready: true })
+                    .write_packet(Packet::WaitingStatus { ready: self.ready })
                     .await?;
                 Result::Continue
             }
             Message::Key(KeyCode::Char('l')) => {
-                client
-                    .writer
-                    .write_packet(Packet::WaitingStatus { ready: false })
-                    .await?;
+                client.writer.write_packet(Packet::RequestGameEnd).await?;
                 Result::Continue
             }
             Message::Packet(packet) => match packet {
@@ -180,15 +181,22 @@ impl Handler for Results {
                     Result::ChangeState(State::Loading)
                 }
                 Packet::LobbyEvent {
-                    action: _,
+                    action,
                     user: _,
                     lobby,
-                } => Result::ChangeState(State::Lobby(lobby::Lobby {
-                    clients: lobby,
-                    username: client.options.user.clone(),
-                    ready: false,
-                    id: client.id,
-                })),
+                } => {
+                    if action == shared::lobby::Action::Return {
+                        Result::ChangeState(State::Lobby(lobby::Lobby {
+                            clients: lobby,
+                            username: client.options.user.clone(),
+                            ready: false,
+                            id: client.id,
+                        }))
+                    } else {
+                        self.lobby = lobby;
+                        Result::Continue
+                    }
+                }
                 _ => Result::Unhandled,
             },
             _ => Result::Unhandled,

@@ -1,11 +1,11 @@
 use geoutils::Location;
-use shared::RoundData;
+use shared::RoundResult;
 
 use crate::server::State;
 use crate::{Server, error::Error, images::images};
 use shared::Player;
 
-pub async fn new(server: &mut Server, old: Option<&RoundData>) -> Result<State, Error> {
+pub async fn new(server: &mut Server, old: Option<&RoundResult>) -> Result<State, Error> {
     eprintln!("server: initializing round");
     server.clients.iter_mut().for_each(|x| x.ready = false);
     let lobby = server.lobby().await;
@@ -22,6 +22,7 @@ pub async fn new(server: &mut Server, old: Option<&RoundData>) -> Result<State, 
                 guess: None,
                 points: p.points,
                 id: p.id,
+                delta: 0,
             })
             .collect()
     } else {
@@ -32,6 +33,7 @@ pub async fn new(server: &mut Server, old: Option<&RoundData>) -> Result<State, 
                 guess: None,
                 points: 0,
                 id: c.id,
+                delta: 0,
             })
             .collect()
     };
@@ -51,14 +53,14 @@ pub async fn new(server: &mut Server, old: Option<&RoundData>) -> Result<State, 
         .await;
 
     eprintln!("server: starting round {number}");
-    Ok(State::Round(RoundData {
+    Ok(State::Round(RoundResult {
         answer: data.coordinates,
         number,
         players,
     }))
 }
 
-pub fn results(round: &mut RoundData) {
+pub fn results(round: &mut RoundResult) {
     let answer = Location::new(round.answer.latitude, round.answer.longitude);
 
     for player in &mut round.players {
@@ -67,12 +69,15 @@ pub fn results(round: &mut RoundData) {
             player.guess.unwrap().longitude,
         )
         .haversine_distance_to(&answer)
-        .meters() / 1000.0;
+        .meters()
+            / 1000.0;
 
         const MAX_SCORE: f64 = 1000.0;
         const BEST_DISTANCE: f64 = 250.0;
-        const DECAY: f64 = 1500.0;
+        const DECAY: f64 = 2000.0;
         let score = MAX_SCORE * f64::exp(-(distance - BEST_DISTANCE) / DECAY);
-        player.points += score.clamp(0.0, 1000.0).round() as u64;
+        let score = score.clamp(0.0, 1000.0).round() as u32;
+        player.points += score;
+        player.delta = score;
     }
 }
