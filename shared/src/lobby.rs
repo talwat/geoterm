@@ -11,7 +11,10 @@ impl Index<usize> for Clients {
     type Output = Client;
 
     fn index(&self, index: usize) -> &Self::Output {
-        self.inner.index(index)
+        self.inner
+            .iter()
+            .find(|x| x.id == index)
+            .expect("player not found")
     }
 }
 

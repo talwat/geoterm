@@ -1,16 +1,18 @@
 use ratatui::{
     buffer::Buffer,
-    layout::{Alignment, Rect},
-    style::Color,
+    layout::{Alignment, Constraint, Layout, Rect},
+    style::{Color, Style, Stylize},
     symbols,
+    text::{Line, Span},
     widgets::{
-        Block, Widget,
+        Block, Padding, Paragraph, Widget,
         canvas::{self, Canvas, Map, Points},
     },
 };
 use shared::lobby::Clients;
 
 pub struct Results {
+    pub id: usize,
     pub data: shared::RoundData,
     pub lobby: Clients,
 }
@@ -27,9 +29,11 @@ fn convert_color(c: shared::Color) -> Color {
 
 impl Widget for &Results {
     fn render(self, area: Rect, buf: &mut Buffer) {
-        let block = Block::bordered()
-            .title(format!(" Round {} ", self.data.number))
-            .title_alignment(Alignment::Center);
+        let areas: [Rect; 2] = Layout::new(
+            ratatui::layout::Direction::Vertical,
+            [Constraint::Fill(1), Constraint::Percentage(25)],
+        )
+        .areas(area);
 
         Canvas::default()
             .marker(symbols::Marker::HalfBlock)
@@ -38,7 +42,7 @@ impl Widget for &Results {
             .paint(|ctx| {
                 ctx.draw(&Map {
                     resolution: canvas::MapResolution::High,
-                    color: Color::White,
+                    color: Color::DarkGray,
                 });
 
                 for player in &self.data.players {
@@ -55,6 +59,7 @@ impl Widget for &Results {
                         color: convert_color(options.color),
                     });
                 }
+
                 ctx.draw(&Points {
                     coords: &[(
                         self.data.answer.longitude as f64,
@@ -63,7 +68,41 @@ impl Widget for &Results {
                     color: Color::LightRed,
                 });
             })
-            .block(block)
-            .render(area, buf);
+            .block(
+                Block::bordered()
+                    .title(format!(" Results {} ", self.data.number))
+                    .title_alignment(Alignment::Center),
+            )
+            .render(areas[0], buf);
+
+        let text: Vec<Line> = self
+            .data
+            .players
+            .iter()
+            .map(|x| {
+                let you = x.id == self.id;
+
+                let style = Style::new();
+                let mut line: Line = if you {
+                    Span::styled("you", style.italic())
+                } else {
+                    Span::styled(&self.lobby[x.id].options.user, style)
+                }
+                .into();
+
+                line.push_span(Span::raw(format!(" - {}", x.points)));
+                line
+            })
+            .collect();
+
+        Paragraph::new(text)
+            .block(
+                Block::bordered()
+                    .title(" Points ")
+                    .padding(Padding::left(1))
+                    .title_alignment(Alignment::Center)
+                    .title_bottom(format!(" {}eady, {}obby ", "[r]".bold(), "[l]".bold())),
+            )
+            .render(areas[1], buf);
     }
 }

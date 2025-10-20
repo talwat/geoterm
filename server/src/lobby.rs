@@ -30,12 +30,9 @@ pub async fn handler(server: &mut Server, message: Message) -> Result<(), Error>
                     server.state = round::new(server, None).await?;
                 }
             }
-            Ok(Packet::SoftQuit) => {
-                eprintln!("server(client {id}): soft quit");
-                server[id].options = None;
-            }
-            Ok(other) => server.kick(id, shared::Error::Illegal(other)).await,
-            Err(error) => server.kick(id, error).await,
+            Ok(Packet::SoftQuit) => server.soft_kick(id).await?,
+            Ok(other) => server.kick(id, shared::Error::Illegal(other)).await?,
+            Err(error) => server.kick(id, error).await?,
         },
         Message::Connection(socket, address) => {
             server.client(socket, address).await?;

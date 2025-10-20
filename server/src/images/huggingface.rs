@@ -18,20 +18,6 @@ pub struct Data {
     pub address: String,
 }
 
-// impl Response {
-//     fn flatten(mut self) -> Result<Data, Error> {
-//         let content = self.rows.swap_remove(0).content;
-//         let mut chars = content.country.chars();
-
-//         Ok(Data {
-//             image: content.image,
-//             coordinates: (content.longitude.parse()?, content.latitude.parse()?),
-//             country: [chars.next().unwrap(), chars.next().unwrap()],
-//             address: content.address,
-//         })
-//     }
-// }
-
 pub fn parse(json: JsonValue) -> Option<Data> {
     let row = &json["rows"][0]["row"];
 

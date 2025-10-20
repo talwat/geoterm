@@ -1,11 +1,11 @@
 use image::RgbImage;
 use ratatui::{
     buffer::Buffer,
-    layout::{Alignment, Constraint, Layout, Rect},
-    style::Color,
+    layout::{Alignment, Rect},
+    style::{Color, Stylize},
     symbols,
     widgets::{
-        Block, Paragraph, Widget,
+        Block, Padding, Widget,
         canvas::{self, Canvas, Context, Map},
     },
 };
@@ -23,7 +23,7 @@ impl Round {
     fn draw_guesser(&self, ctx: &mut Context<'_>) {
         ctx.draw(&Map {
             resolution: canvas::MapResolution::High,
-            color: Color::White,
+            color: Color::DarkGray,
         });
 
         ctx.draw(&canvas::Points {
@@ -53,24 +53,8 @@ impl Widget for &Round {
     fn render(self, area: Rect, buf: &mut Buffer) {
         let image = &self.image;
 
-        let layout = Layout::new(
-            ratatui::layout::Direction::Vertical,
-            vec![Constraint::Length(2), Constraint::Fill(1)],
-        )
-        .horizontal_margin(2)
-        .vertical_margin(1)
-        .split(area);
-
-        Block::bordered()
-            .title(format!(" Round {} ", self.number))
-            .title_alignment(Alignment::Center)
-            .render(area, buf);
-
         let (width, height) = image.dimensions();
         let (width, height) = (width as f64, height as f64);
-
-        Paragraph::new(format!("img size: {}", self.image_len)).render(layout[0], buf);
-
         Canvas::default()
             .marker(symbols::Marker::HalfBlock)
             .x_bounds(if self.guessing {
@@ -90,6 +74,13 @@ impl Widget for &Round {
                     self.draw_image(ctx, height);
                 }
             })
-            .render(layout[1], buf);
+            .block(
+                Block::bordered()
+                    .padding(Padding::new(1, 0, 1, 0))
+                    .title(format!(" Round {} ", self.number))
+                    .title_alignment(Alignment::Center)
+                    .title_bottom(format!(" {}uess, {}ubmit ", "[g]".bold(), "[s]".bold())),
+            )
+            .render(area, buf);
     }
 }

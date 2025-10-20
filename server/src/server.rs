@@ -90,7 +90,21 @@ impl Server {
         }
     }
 
-    pub async fn kick(&mut self, client: usize, error: shared::Error) {
+    pub async fn soft_kick(&mut self, client: usize) -> Result<(), Error> {
+        eprintln!("server(client {client}): soft quit");
+        self[client].options = None;
+        self.verify(client).await;
+
+        if self.state == State::Lobby && self.ready() {
+            self.state = round::new(self, None).await?;
+        } else {
+            self.verify(client).await;
+        }
+
+        Ok(())
+    }
+
+    pub async fn kick(&mut self, client: usize, error: shared::Error) -> Result<(), Error> {
         eprintln!("server(client {client}): removed: {error}");
         if let Some(index) = self.clients.iter().position(|x| x.id == client) {
             self.clients.remove(index);
@@ -99,9 +113,15 @@ impl Server {
         if self.state == State::Lobby {
             self.broadcast_lobby(client, shared::lobby::Action::Leave)
                 .await;
+
+            if self.ready() {
+                self.state = round::new(self, None).await?;
+            }
         } else {
             self.verify(client).await;
         }
+
+        Ok(())
     }
 
     pub async fn broadcast(&mut self, packet: &Packet, exclude: Option<usize>) {
@@ -140,13 +160,19 @@ impl Server {
 
     pub async fn broadcast_lobby(&mut self, id: usize, action: shared::lobby::Action) {
         let clients = self.lobby().await;
+        let exclude = if action == shared::lobby::Action::Return {
+            None
+        } else {
+            Some(id)
+        };
+
         self.broadcast(
             &Packet::LobbyEvent {
                 action,
                 user: id,
                 lobby: clients,
             },
-            Some(id),
+            exclude,
         )
         .await;
     }
@@ -189,10 +215,7 @@ impl Server {
                             eprintln!("server(client {id}): return to lobby");
                             self.return_to_lobby(id).await;
                         }
-                        Ok(Packet::SoftQuit) => {
-                            self[id].options = None;
-                            self.verify(id).await;
-                        }
+                        Ok(Packet::SoftQuit) => self.soft_kick(id).await?,
                         Ok(Packet::Guess { coordinates }) => {
                             eprintln!("server(client {id}): guessed at {coordinates:?}");
                             round[id].guess = Some(coordinates);
@@ -203,8 +226,8 @@ impl Server {
                             self.broadcast(&Packet::Guessed { player: id }, Some(id))
                                 .await;
                         }
-                        Ok(other) => self.kick(id, shared::Error::Illegal(other)).await,
-                        Err(error) => self.kick(id, error).await,
+                        Ok(other) => self.kick(id, shared::Error::Illegal(other)).await?,
+                        Err(error) => self.kick(id, error).await?,
                     },
                     Message::Quit => return Ok(()),
                 },
@@ -231,8 +254,8 @@ impl Server {
                                 self.state = round::new(self, Some(&round)).await?;
                             }
                         }
-                        Ok(other) => self.kick(id, shared::Error::Illegal(other)).await,
-                        Err(error) => self.kick(id, error).await,
+                        Ok(other) => self.kick(id, shared::Error::Illegal(other)).await?,
+                        Err(error) => self.kick(id, error).await?,
                     },
                     Message::Connection(mut stream, _addr) => stream.shutdown().await?,
                     Message::Quit | Message::GuessingComplete => return Ok(()),

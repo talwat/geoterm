@@ -1,10 +1,7 @@
-use bytes::BytesMut;
 use crossterm::event::KeyCode;
 use shared::{
     BufferedSplitExt, ClientOptions, LOCALHOST, Packet, PacketReadExt, PacketWriteExt, Reader,
-    Writer,
-    image::{HEIGHT, WIDTH, decode},
-    lobby::Clients,
+    Writer, lobby::Clients,
 };
 use tokio::{
     io::AsyncWriteExt,
@@ -13,8 +10,12 @@ use tokio::{
     task::JoinHandle,
 };
 
-use crate::ui::{UI, lobby, results, round};
+use crate::{
+    logic::{Handler, Loading},
+    ui::{UI, lobby, results, round},
+};
 
+pub mod logic;
 pub mod ui;
 
 #[derive(Debug, PartialEq)]
@@ -33,6 +34,7 @@ struct Client {
     writer: Writer,
     rx: Receiver<Message>,
     tx: Sender<Message>,
+    lobby: Clients,
     handle: JoinHandle<eyre::Result<()>>,
 }
 
@@ -46,7 +48,7 @@ impl Client {
         Ok(())
     }
 
-    pub async fn new(options: ClientOptions) -> eyre::Result<(Self, Clients)> {
+    pub async fn new(options: ClientOptions) -> eyre::Result<Self> {
         let (tx, rx) = mpsc::channel(8);
         let stream = TcpStream::connect(LOCALHOST).await?;
         let (mut reader, mut writer) = stream.buffered_split();
@@ -70,9 +72,10 @@ impl Client {
             rx,
             handle: tokio::spawn(Self::listener(reader, tx.clone())),
             tx,
+            lobby,
         };
 
-        Ok((client, lobby))
+        Ok(client)
     }
 }
 
@@ -91,27 +94,26 @@ pub enum State {
 
 #[tokio::main]
 async fn main() -> eyre::Result<()> {
+    color_eyre::install()?;
     let options = ClientOptions {
         color: shared::Color::Blue,
         user: String::from("bobby"),
     };
 
-    let (mut client, lobby) = Client::new(options).await?;
+    let mut client = Client::new(options).await?;
     let mut terminal = ratatui::init();
     let mut state = State::Lobby(lobby::Lobby {
         id: client.id,
         ready: client.ready,
-        clients: lobby.clone(),
+        clients: client.lobby.clone(),
         username: "bobby".to_string(),
     });
 
     let mut ui = UI::init(client.tx.clone());
     ui.render(&mut terminal, &state)?;
 
-    let mut players: Clients = lobby;
-
     'main: loop {
-        while let Some(mut message) = client.rx.recv().await {
+        while let Some(message) = client.rx.recv().await {
             if message == Message::Quit {
                 break 'main;
             }
@@ -121,135 +123,18 @@ async fn main() -> eyre::Result<()> {
                 continue;
             }
 
-            if let Message::Packet(packet) = &mut message {
-                if let Packet::LobbyEvent {
-                    action,
-                    user: _,
-                    lobby,
-                } = packet
-                {
-                    if *action == shared::lobby::Action::Return {
-                        state = State::Lobby(lobby::Lobby {
-                            clients: std::mem::take(lobby),
-                            username: client.options.user.clone(),
-                            ready: false,
-                            id: client.id,
-                        });
+            let result = match &mut state {
+                State::Lobby(state) => state.handle(message, &mut client).await,
+                State::Loading => Loading::handle(&mut Loading, message, &mut client).await,
+                State::Round(round) => round.handle(message, &mut client).await,
+                State::Results(results) => results.handle(message, &mut client).await,
+            }?;
 
-                        continue;
-                    }
-                }
-            }
-
-            match &mut state {
-                State::Lobby(lobby_state) => match message {
-                    Message::Ready => {
-                        lobby_state.ready = !lobby_state.ready;
-                        client
-                            .writer
-                            .write_packet(Packet::WaitingStatus {
-                                ready: lobby_state.ready,
-                            })
-                            .await?;
-                    }
-                    Message::Packet(packet) => match packet {
-                        Packet::RoundLoading { lobby } => {
-                            players = lobby;
-                            state = State::Loading
-                        }
-                        Packet::LobbyEvent { lobby, .. } => lobby_state.clients = lobby,
-                        _ => continue,
-                    },
-                    _ => continue,
-                },
-                State::Loading => match message {
-                    Message::Packet(packet) => match packet {
-                        Packet::Round { number, image } => {
-                            state = State::Round(round::Round {
-                                image_len: image.len(),
-                                image: decode(BytesMut::from(image), WIDTH, HEIGHT)?,
-                                cursor: (0.0, 0.0),
-                                guessed: false,
-                                guessing: false,
-                                number,
-                            })
-                        }
-                        _ => continue,
-                    },
-                    _ => continue,
-                },
-                State::Round(round) => match message {
-                    Message::Key(key) => match key {
-                        KeyCode::Char(x) => match x {
-                            'g' => round.guessing = !round.guessing,
-                            ' ' => {
-                                round.guessed = true;
-                                client
-                                    .writer
-                                    .write_packet(Packet::Guess {
-                                        coordinates: shared::Coordinate {
-                                            longitude: round.cursor.0,
-                                            latitude: round.cursor.1,
-                                        },
-                                    })
-                                    .await?;
-                            }
-                            _ => continue,
-                        },
-                        KeyCode::Up => round.cursor.1 += 3.0,
-                        KeyCode::Down => round.cursor.1 -= 3.0,
-                        KeyCode::Left => round.cursor.0 -= 3.0,
-                        KeyCode::Right => round.cursor.0 += 3.0,
-                        _ => continue,
-                    },
-                    Message::Packet(packet) => match packet {
-                        Packet::LobbyEvent {
-                            action,
-                            user: _,
-                            lobby,
-                        } => {
-                            if action == shared::lobby::Action::Return {
-                                state = State::Lobby(lobby::Lobby {
-                                    clients: lobby,
-                                    username: client.options.user.clone(),
-                                    ready: false,
-                                    id: client.id,
-                                });
-                            }
-                        }
-                        Packet::Guessed { player: _ } => {}
-                        Packet::Result { round } => {
-                            state = State::Results(results::Results {
-                                data: round,
-                                lobby: players.clone(),
-                            });
-                        }
-                        _ => continue,
-                    },
-                    _ => continue,
-                },
-                State::Results(..) => match message {
-                    Message::Ready => {
-                        client
-                            .writer
-                            .write_packet(Packet::WaitingStatus { ready: true })
-                            .await?;
-                    }
-                    Message::Key(KeyCode::Char('l')) => {
-                        client
-                            .writer
-                            .write_packet(Packet::WaitingStatus { ready: false })
-                            .await?;
-                    }
-                    Message::Packet(packet) => match packet {
-                        Packet::RoundLoading { lobby } => {
-                            players = lobby;
-                            state = State::Loading
-                        }
-                        _ => continue,
-                    },
-                    _ => continue,
-                },
+            match result {
+                logic::Result::Quit => break 'main,
+                logic::Result::ChangeState(new) => state = new,
+                logic::Result::Unhandled => (), // TODO: Handle this actually.
+                logic::Result::Continue => (),
             }
 
             ui.render(&mut terminal, &state)?;
