@@ -4,8 +4,9 @@
 #include <stdio.h>
 #include <string.h>
 
-static LobbyClient LOBBY[16];
-static Player PLAYERS[16];
+LobbyClient LOBBY[16];
+uint8_t LOBBY_LEN;
+Player PLAYERS[16];
 
 static uint8_t read_u8(void) {
     uint8_t v;
@@ -71,6 +72,7 @@ static void deserialize_player(Player *p) {
 
 static void deserialize_clients(Clients *lobby) {
     lobby->len = read_u32();
+    LOBBY_LEN = lobby->len;
     lobby->clients = LOBBY;
     for (size_t i = 0; i < lobby->len; i++) {
         LobbyClient *c = &lobby->clients[i];

@@ -13,6 +13,8 @@
 #include "serialize.h"
 #include "shared.h"
 
+static bool READY = false;
+
 int init() {
     os_ClrHome();
     os_SetCursorPos(0, 0);
@@ -48,7 +50,7 @@ int init() {
 }
 
 void ready() {
-    PacketData ready = {.waiting_status = {.ready = true}};
+    PacketData ready = {.waiting_status = {.ready = READY}};
     Packet packet = {.data = ready, .tag = PACKET_WAITING_STATUS};
     serialize_packet(&packet);
 }
@@ -71,6 +73,7 @@ void clear_cursor(short px, short py) {
         }
     }
 }
+
 bool wait(Packet *packet, PacketTag target) {
     while (true) {
         kb_Scan();
@@ -117,6 +120,58 @@ void render_map() {
     }
 }
 
+bool lobby(Packet *packet) {
+    bool enter_prev = false;
+
+    while (true) {
+        while (true) {
+            kb_Scan();
+            if (kb_IsDown(kb_KeyEnter)) {
+                if (!enter_prev) {
+                    READY = !READY;
+                    ready();
+                }
+
+                enter_prev = true;
+            } else {
+                enter_prev = false;
+            }
+
+            if (kb_IsDown(kb_KeyClear)) {
+                usb_Cleanup();
+                return false;
+            }
+
+            if (!has_srl_device)
+                return false;
+
+            if (!deserialize_packet(packet)) {
+                usb_HandleEvents();
+                continue;
+            }
+
+            if (packet->tag == PACKET_LOBBY_EVENT)
+                break;
+
+            if (packet->tag == PACKET_ROUND_LOADING)
+                return true;
+        }
+
+        os_ClrHome();
+        os_SetCursorPos(0, 0);
+        os_PutStrFull("lobby:");
+        for (int i = 0; i < LOBBY_LEN; i++) {
+            os_SetCursorPos(i + 1, 0);
+            os_PutStrFull("* ");
+            os_PutStrFull(LOBBY[i].options.user);
+
+            if (LOBBY[i].ready) {
+                os_PutStrFull(" (ready)");
+            }
+        }
+    }
+}
+
 int main(void) {
     if (init() != 0)
         return 1;
@@ -125,24 +180,10 @@ int main(void) {
     if (!wait(&packet, PACKET_CONFIRMED))
         return 1;
 
-    os_ClrHome();
-    os_SetCursorPos(0, 0);
-    printf("lobby size %d\n", packet.data.confirmed.lobby.len);
-    printf("name %s\n", packet.data.confirmed.options.user);
-    printf("press enter to ready.\n");
-
-    while (!os_GetCSC()) {
-        usb_HandleEvents();
-    };
-    os_ClrHome();
-
-    ready();
-    os_ClrHome();
-    os_SetCursorPos(0, 0);
-
-    os_PutStrFull("ready!");
-    if (!wait(&packet, PACKET_ROUND_LOADING))
+    bool result = lobby(&packet);
+    if (!result) {
         return 1;
+    }
 
     gfx_Begin();
     init_palette();
