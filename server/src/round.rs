@@ -63,15 +63,16 @@ pub fn results(round: &mut RoundData) {
 
     for player in &mut round.players {
         let distance = Location::new(
-            player.guess.unwrap().longitude,
             player.guess.unwrap().latitude,
+            player.guess.unwrap().longitude,
         )
         .haversine_distance_to(&answer)
-        .meters();
-        const SIGMA: f64 = 3000.0 * 1000.0;
+        .meters() / 1000.0;
 
-        // Gauss something or other, I'm an engineer not a mathematician.
-        let score = 1000.0 * f64::exp(-0.5 * (distance / SIGMA).powi(2));
-        player.points += score.round() as u64;
+        const MAX_SCORE: f64 = 1000.0;
+        const BEST_DISTANCE: f64 = 250.0;
+        const DECAY: f64 = 1500.0;
+        let score = MAX_SCORE * f64::exp(-(distance - BEST_DISTANCE) / DECAY);
+        player.points += score.clamp(0.0, 1000.0).round() as u64;
     }
 }

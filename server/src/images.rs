@@ -10,6 +10,7 @@ pub mod huggingface;
 pub async fn images() -> Result<([Bytes; 3], Data), Error> {
     let random = rand::random_range(0..11054);
     let data = huggingface::fetch(random).await?;
+    eprintln!("-> {}", data.image.src.clone());
     let bytes = reqwest::get(data.image.src.clone()).await?.bytes().await?;
     let bytes = bytes.to_vec();
     eprintln!("-> fetched {} bytes of image data", bytes.len());
