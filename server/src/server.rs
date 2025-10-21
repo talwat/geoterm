@@ -93,6 +93,7 @@ impl Server {
     pub async fn soft_kick(&mut self, client: usize) -> Result<(), Error> {
         eprintln!("server(client {client}): soft quit");
         self[client].options = None;
+        self[client].ready = false;
         self.verify(client).await;
 
         if self.state == State::Lobby && self.ready() {
@@ -244,6 +245,7 @@ impl Server {
                                 self.state = round::new(self, Some(&round)).await?;
                             }
                         }
+                        Ok(Packet::SoftQuit) => self.soft_kick(id).await?,
                         Ok(other) => self.kick(id, shared::Error::Illegal(other)).await?,
                         Err(error) => self.kick(id, error).await?,
                     },

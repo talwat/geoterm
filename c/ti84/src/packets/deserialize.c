@@ -99,6 +99,8 @@ bool deserialize_packet(Packet *p) {
     }
 
     p->tag = tag;
+    // Stall for a bit to wait for all the data to come in.
+    // TODO: Fix this shitty hack.
     for (volatile int i = 0; i < 50000; i++)
         usb_HandleEvents();
 
@@ -119,7 +121,7 @@ bool deserialize_packet(Packet *p) {
     case PACKET_ROUND:
         p->data.round.number = read_u32();
         p->data.round.image_len = read_u32();
-        p->data.round.image = gfx_vbuffer;
+        p->data.round.image = (unsigned char *)gfx_vbuffer;
         read_all(p->data.round.image, p->data.round.image_len - 1);
         break;
     case PACKET_GUESSED:

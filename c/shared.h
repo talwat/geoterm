@@ -6,7 +6,7 @@
 #include <stdint.h>
 
 #define PORT 4000
-#define BAUD 38400
+#define BAUD 9600 * 4
 #define IMAGE_W 320
 #define IMAGE_H 240
 
@@ -84,7 +84,7 @@ typedef union {
     struct {
         size_t number;
         size_t image_len;
-        char *image;
+        unsigned char *image;
     } round;
     struct {
         Coordinate coordinates;

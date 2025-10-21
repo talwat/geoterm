@@ -1,12 +1,9 @@
 #include "shared.h"
 #include <device.h>
+#include <stdint.h>
 #include <string.h>
 
 static void write_u8(uint8_t v) { srl_Write(&srl, &v, 1); }
-// static void write_u32(uint32_t v) {
-//     uint8_t buf[4] = {(v >> 24) & 0xFF, (v >> 16) & 0xFF, (v >> 8) & 0xFF, v & 0xFF};
-//     srl_Write(&srl, buf, 4);
-// }
 
 static void write_f32(float f) {
     uint32_t tmp;

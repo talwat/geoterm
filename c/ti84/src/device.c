@@ -36,7 +36,7 @@ usb_error_t usb_handler(
         }
 
         srl_error_t error =
-            srl_Open(&srl, device, srl_buf, sizeof srl_buf, SRL_INTERFACE_ANY, 9600 * 4);
+            srl_Open(&srl, device, srl_buf, sizeof srl_buf, SRL_INTERFACE_ANY, 115200);
         if (error) {
             os_PutStrFull("error initializing serial\n");
             return USB_SUCCESS;

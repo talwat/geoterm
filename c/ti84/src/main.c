@@ -1,21 +1,23 @@
-#include <keypadc.h>
+#include <graphx.h>
 #include <srldrvce.h>
 #include <stdbool.h>
-#include <stdio.h>
 
 #include <ti/getcsc.h>
 #include <ti/screen.h>
 
 #include "deserialize.h"
 #include "device.h"
-#include "graphx.h"
-#include "map.inc"
+#include "lobby.h"
+#include "map.h"
 #include "serialize.h"
 #include "shared.h"
 
-static bool READY = false;
+void cleanup() {
+    gfx_End();
+    usb_Cleanup();
+}
 
-int init() {
+bool init() {
     os_ClrHome();
     os_SetCursorPos(0, 0);
     os_PutStrFull("geoterm ti84");
@@ -26,19 +28,30 @@ int init() {
     if (usb_error) {
         usb_Cleanup();
         os_PutStrFull("usb init error\n");
-        do
-            kb_Scan();
-        while (!kb_IsDown(kb_KeyClear));
-        return 1;
+        while (os_GetCSC() != sk_Clear)
+            return false;
     }
 
-    os_SetCursorPos(2, 0);
-    os_PutStrFull("init serial! :)");
+    // Stall to wait for transponder.
+    for (volatile unsigned int i = 0; i < 100000; i++)
+        usb_HandleEvents();
+
+    os_SetCursorPos(1, 0);
+    os_PutStrFull("initialized serial! :)");
 
     os_SetCursorPos(3, 0);
-    os_PutStrFull("press enter");
+    os_PutStrFull("controls: enter to guess, + to submit, clear to quit");
 
-    while (!os_GetCSC()) {
+    os_SetCursorPos(6, 0);
+    os_PutStrFull("press any key to continue");
+
+    while (os_GetCSC())
+        ;
+    uint8_t key = 0;
+    while (!key) {
+        key = os_GetCSC();
+        if (key == sk_Clear)
+            return false;
         usb_HandleEvents();
     };
 
@@ -46,44 +59,15 @@ int init() {
     Packet packet = {.data = data, .tag = PACKET_INIT};
     serialize_packet(&packet);
 
-    return 0;
-}
-
-void ready() {
-    PacketData ready = {.waiting_status = {.ready = READY}};
-    Packet packet = {.data = ready, .tag = PACKET_WAITING_STATUS};
-    serialize_packet(&packet);
-}
-
-void clear_cursor(short px, short py) {
-    for (int y = 0; y < 4; y++) {
-        int map_y = py + y;
-        if (map_y < 0 || map_y >= GFX_LCD_HEIGHT)
-            continue;
-
-        int byte_index = (map_y * (GFX_LCD_WIDTH / 4)) + (px / 4);
-        if (byte_index >= sizeof(world_map))
-            continue;
-
-        uint8_t b = world_map[byte_index];
-        for (int bit = 0; bit < 4; bit++) {
-            uint8_t color_index = (b >> (6 - 2 * bit)) & 3;
-            gfx_SetColor(gfx_palette[color_index]);
-            gfx_SetPixel(px + bit, map_y);
-        }
-    }
+    return true;
 }
 
 bool wait(Packet *packet, PacketTag target) {
-    while (true) {
-        kb_Scan();
-        if (kb_IsDown(kb_KeyClear)) {
-            usb_Cleanup();
+    while (has_srl_device) {
+        if (os_GetCSC() == sk_Clear) {
+            cleanup();
             return false;
         }
-
-        if (!has_srl_device)
-            return false;
 
         if (!deserialize_packet(packet)) {
             usb_HandleEvents();
@@ -93,12 +77,14 @@ bool wait(Packet *packet, PacketTag target) {
         if (packet->tag == target)
             return true;
     }
+
+    return false;
 }
 
 void init_palette(void) {
-    int idx = 0;
-    for (int r = 0; r < 8; r++) {
-        for (int g = 0; g < 8; g++) {
+    unsigned short idx = 0;
+    for (uint8_t r = 0; r < 8; r++) {
+        for (uint8_t g = 0; g < 8; g++) {
             for (int b = 0; b < 4; b++) {
                 uint8_t R = (r * 255) / 7;
                 uint8_t G = (g * 255) / 7;
@@ -109,86 +95,27 @@ void init_palette(void) {
     }
 }
 
-void render_map() {
-    uint8_t *dst = gfx_vbuffer;
-    for (unsigned int i = 0; i < sizeof(world_map); i++) {
-        uint8_t b = world_map[i];
-        *dst++ = gfx_palette[(b >> 6) & 3];
-        *dst++ = gfx_palette[(b >> 4) & 3];
-        *dst++ = gfx_palette[(b >> 2) & 3];
-        *dst++ = gfx_palette[b & 3];
-    }
-}
-
-bool lobby(Packet *packet) {
-    bool enter_prev = false;
-
-    while (true) {
-        while (true) {
-            kb_Scan();
-            if (kb_IsDown(kb_KeyEnter)) {
-                if (!enter_prev) {
-                    READY = !READY;
-                    ready();
-                }
-
-                enter_prev = true;
-            } else {
-                enter_prev = false;
-            }
-
-            if (kb_IsDown(kb_KeyClear)) {
-                usb_Cleanup();
-                return false;
-            }
-
-            if (!has_srl_device)
-                return false;
-
-            if (!deserialize_packet(packet)) {
-                usb_HandleEvents();
-                continue;
-            }
-
-            if (packet->tag == PACKET_LOBBY_EVENT)
-                break;
-
-            if (packet->tag == PACKET_ROUND_LOADING)
-                return true;
-        }
-
-        os_ClrHome();
-        os_SetCursorPos(0, 0);
-        os_PutStrFull("lobby:");
-        for (int i = 0; i < LOBBY_LEN; i++) {
-            os_SetCursorPos(i + 1, 0);
-            os_PutStrFull("* ");
-            os_PutStrFull(LOBBY[i].options.user);
-
-            if (LOBBY[i].ready) {
-                os_PutStrFull(" (ready)");
-            }
-        }
-    }
-}
-
 int main(void) {
-    if (init() != 0)
+    if (!init()) {
+        cleanup();
         return 1;
+    }
 
     Packet packet;
     if (!wait(&packet, PACKET_CONFIRMED))
         return 1;
 
+    gfx_Begin();
     bool result = lobby(&packet);
     if (!result) {
+        cleanup();
         return 1;
     }
 
-    gfx_Begin();
     init_palette();
+
     gfx_SetDrawScreen();
-    gfx_SetColor(0xff);
+    gfx_FillScreen(0xff);
     gfx_PrintStringXY("loading...", 8, 8);
 
     gfx_SetDrawBuffer();
@@ -203,28 +130,32 @@ int main(void) {
         usb_HandleEvents();
     }
 
-    const float SCALE_X = 320.0 / 360.0;
-    const float SCALE_Y = 240.0 / 180.0;
-
-    const short ORIGIN_X = 180.0 * SCALE_X;
-    const short ORIGIN_Y = 90.0 * SCALE_Y;
-
-    const short CURSOR_SPEED = 4;
-    short cursor_x = ORIGIN_X, cursor_y = ORIGIN_Y;
+    const unsigned short CURSOR_SPEED = 4;
+    unsigned short cursor_x = ORIGIN_X, cursor_y = ORIGIN_Y;
     bool guesser = false;
 
-    uint8_t key = 0;
-    while ((key = os_GetCSC()) != sk_Clear) {
+    while (true) {
+        uint8_t key = os_GetCSC();
+        if (key == sk_Clear) {
+            cleanup();
+            return 0;
+        }
+
         usb_HandleEvents();
+        if (key == sk_Add) {
+            guess(cursor_x, cursor_y);
+            break;
+        }
+
         if (key == sk_Enter) {
             gfx_SwapDraw();
             gfx_Wait();
             guesser = !guesser;
         }
 
-        short prev_x = cursor_x;
-        short prev_y = cursor_y;
         if (guesser && key != 0) {
+            gfx_SetDrawScreen();
+            clear_cursor(cursor_x, cursor_y);
             switch (key) {
             case sk_Left:
                 cursor_x -= CURSOR_SPEED;
@@ -240,15 +171,43 @@ int main(void) {
                 break;
             }
 
-            gfx_SetDrawScreen();
-            clear_cursor(prev_x, prev_y);
-            gfx_SetColor(0b11100000);
-            gfx_FillRectangle(cursor_x, cursor_y, 4, 4);
+            draw_cursor(cursor_x, cursor_y, RED);
             gfx_SetDrawBuffer();
         }
     }
 
-    gfx_End();
-    usb_Cleanup();
+    gfx_SetDrawScreen();
+    // gfx_SetDefaultPalette(gfx_8bpp);
+    gfx_FillScreen(0xff);
+    gfx_PrintStringXY("waiting for other guesses...", 8, 8);
+    if (!wait(&packet, PACKET_RESULT))
+        return 1;
+
+    gfx_SetDrawBuffer();
+    render_map();
+    for (unsigned int i = 0; i < packet.data.result.round.players_len; i++) {
+        Player player = packet.data.result.round.players[i];
+
+        if (!player.has_guess) {
+            continue;
+        }
+
+        unsigned short x = (player.guess.longitude + 180.0) * SCALE_X;
+        unsigned short y = (90.0 - player.guess.latitude) * SCALE_Y;
+        draw_cursor(x, y, LOBBY[i].options.color);
+    }
+
+    Coordinate answer = packet.data.result.round.answer;
+    unsigned short x = (answer.longitude + 180.0) * SCALE_X;
+    unsigned short y = (90.0 - answer.latitude) * SCALE_Y;
+    draw_cursor(x, y, RED);
+
+    gfx_SwapDraw();
+    gfx_Wait();
+    while (!os_GetCSC()) {
+        usb_HandleEvents();
+    }
+
+    cleanup();
     return 0;
 }

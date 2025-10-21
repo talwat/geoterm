@@ -73,7 +73,7 @@ pub fn results(round: &mut RoundResult) {
             / 1000.0;
 
         const MAX_SCORE: f64 = 1000.0;
-        const BEST_DISTANCE: f64 = 250.0;
+        const BEST_DISTANCE: f64 = 200.0;
         const DECAY: f64 = 2000.0;
         let score = MAX_SCORE * f64::exp(-(distance - BEST_DISTANCE) / DECAY);
         let score = score.clamp(0.0, 1000.0).round() as u32;
