@@ -23,7 +23,9 @@ fn convert_color(c: shared::Color) -> Color {
         shared::Color::Red => Color::Red,
         shared::Color::Green => Color::Green,
         shared::Color::Blue => Color::Blue,
+        shared::Color::Cyan => Color::Cyan,
         shared::Color::Magenta => Color::Magenta,
+        shared::Color::Yellow => Color::Yellow,
     }
 }
 

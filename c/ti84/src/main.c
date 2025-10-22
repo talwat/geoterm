@@ -9,13 +9,10 @@
 #include "device.h"
 #include "lobby.h"
 #include "map.h"
+#include "round.h"
 #include "serialize.h"
 #include "shared.h"
-
-void cleanup() {
-    gfx_End();
-    usb_Cleanup();
-}
+#include "utils.h"
 
 bool init() {
     os_ClrHome();
@@ -46,7 +43,8 @@ bool init() {
     os_PutStrFull("press any key to continue");
 
     while (os_GetCSC())
-        ;
+        usb_HandleEvents();
+
     uint8_t key = 0;
     while (!key) {
         key = os_GetCSC();
@@ -60,25 +58,6 @@ bool init() {
     serialize_packet(&packet);
 
     return true;
-}
-
-bool wait(Packet *packet, PacketTag target) {
-    while (has_srl_device) {
-        if (os_GetCSC() == sk_Clear) {
-            cleanup();
-            return false;
-        }
-
-        if (!deserialize_packet(packet)) {
-            usb_HandleEvents();
-            continue;
-        }
-
-        if (packet->tag == target)
-            return true;
-    }
-
-    return false;
 }
 
 void init_palette(void) {
@@ -106,106 +85,26 @@ int main(void) {
         return 1;
 
     gfx_Begin();
-    bool result = lobby(&packet);
-    if (!result) {
-        cleanup();
-        return 1;
-    }
-
     init_palette();
 
-    gfx_SetDrawScreen();
-    gfx_FillScreen(0xff);
-    gfx_PrintStringXY("loading...", 8, 8);
-
-    gfx_SetDrawBuffer();
-    render_map();
-
-    gfx_SetDrawScreen();
-    if (!wait(&packet, PACKET_ROUND))
-        return 1;
-    gfx_SwapDraw();
-
-    while (os_GetCSC()) {
-        usb_HandleEvents();
-    }
-
-    const unsigned short CURSOR_SPEED = 4;
-    unsigned short cursor_x = ORIGIN_X, cursor_y = ORIGIN_Y;
-    bool guesser = false;
+    State state = STATE_LOBBY;
 
     while (true) {
-        uint8_t key = os_GetCSC();
-        if (key == sk_Clear) {
-            cleanup();
-            return 0;
-        }
-
-        usb_HandleEvents();
-        if (key == sk_Add) {
-            guess(cursor_x, cursor_y);
+        switch (state) {
+        case STATE_LOBBY:
+            if (!lobby(&packet)) {
+                cleanup();
+                return 0;
+            }
+            state = STATE_ROUND;
+            break;
+        case STATE_ROUND:
+            if (!do_round(&state)) {
+                cleanup();
+                return 0;
+            }
             break;
         }
-
-        if (key == sk_Enter) {
-            gfx_SwapDraw();
-            gfx_Wait();
-            guesser = !guesser;
-        }
-
-        if (guesser && key != 0) {
-            gfx_SetDrawScreen();
-            clear_cursor(cursor_x, cursor_y);
-            switch (key) {
-            case sk_Left:
-                cursor_x -= CURSOR_SPEED;
-                break;
-            case sk_Right:
-                cursor_x += CURSOR_SPEED;
-                break;
-            case sk_Down:
-                cursor_y += CURSOR_SPEED;
-                break;
-            case sk_Up:
-                cursor_y -= CURSOR_SPEED;
-                break;
-            }
-
-            draw_cursor(cursor_x, cursor_y, RED);
-            gfx_SetDrawBuffer();
-        }
-    }
-
-    gfx_SetDrawScreen();
-    // gfx_SetDefaultPalette(gfx_8bpp);
-    gfx_FillScreen(0xff);
-    gfx_PrintStringXY("waiting for other guesses...", 8, 8);
-    if (!wait(&packet, PACKET_RESULT))
-        return 1;
-
-    gfx_SetDrawBuffer();
-    render_map();
-    for (unsigned int i = 0; i < packet.data.result.round.players_len; i++) {
-        Player player = packet.data.result.round.players[i];
-
-        if (!player.has_guess) {
-            continue;
-        }
-
-        unsigned short x = (player.guess.longitude + 180.0) * SCALE_X;
-        unsigned short y = (90.0 - player.guess.latitude) * SCALE_Y;
-        draw_cursor(x, y, LOBBY[i].options.color);
-    }
-
-    Coordinate answer = packet.data.result.round.answer;
-    unsigned short x = (answer.longitude + 180.0) * SCALE_X;
-    unsigned short y = (90.0 - answer.latitude) * SCALE_Y;
-    draw_cursor(x, y, RED);
-
-    gfx_SwapDraw();
-    gfx_Wait();
-    while (!os_GetCSC()) {
-        usb_HandleEvents();
     }
 
     cleanup();

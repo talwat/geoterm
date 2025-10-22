@@ -65,7 +65,9 @@ pub enum Color {
     Red = 0,
     Green,
     Blue,
+    Cyan,
     Magenta,
+    Yellow,
 }
 
 #[derive(Debug, PartialEq, Clone)]

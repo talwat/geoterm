@@ -43,24 +43,35 @@ void guess(unsigned short x, unsigned short y) {
     serialize_packet(&packet);
 }
 
-void draw_cursor(unsigned short x, unsigned short y, Color color) {
-    unsigned char idx = 0xff;
+unsigned char convert_color(Color color) {
     switch (color) {
     case RED:
-        idx = 0b11100000;
+        return 0b11100000;
         break;
     case BLUE:
-        idx = 0b00000011;
+        return 0b00000011;
         break;
     case GREEN:
-        idx = 0b00011100;
+        return 0b00011100;
+        break;
+    case MAGENTA:
+        return 0b11100011;
+        break;
+    case CYAN:
+        return 0b00011111;
+        break;
+    case YELLOW:
+        return 0b11111100;
+        break;
+    default:
+        return 0xff;
         break;
     }
+}
 
-    gfx_SetColor(idx);
+void draw_cursor(unsigned short x, unsigned short y, Color color) {
+    gfx_SetColor(convert_color(color));
     gfx_FillRectangle(x, y, 4, 4);
-    // gfx_SetColor(0xff);
-    // gfx_Rectangle(x, y, 4, 4);
 }
 
 void clear_cursor(short px, short py) {

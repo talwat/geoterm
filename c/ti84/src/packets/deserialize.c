@@ -128,7 +128,7 @@ bool deserialize_packet(Packet *p) {
         p->data.guessed.player = read_u32();
         break;
     case PACKET_RESULT:
-        deserialize_result(&p->data.result.round);
+        deserialize_result(&p->data.results.round);
         break;
     default:
         break;

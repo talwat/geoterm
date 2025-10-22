@@ -10,8 +10,10 @@
 #define IMAGE_W 320
 #define IMAGE_H 240
 
+typedef enum { STATE_ROUND, STATE_LOBBY } State;
+
 typedef enum { LOBBY_JOIN = 0, LOBBY_RETURN, LOBBY_LEAVE, LOBBY_READY } LobbyAction;
-typedef enum { RED = 0, GREEN, BLUE, MAGENTA } Color;
+typedef enum { RED = 0, GREEN, BLUE, CYAN, MAGENTA, YELLOW } Color;
 typedef enum {
     PACKET_INIT = 1,
     PACKET_CONFIRMED,
@@ -94,7 +96,7 @@ typedef union {
     } guessed;
     struct {
         RoundData round;
-    } result;
+    } results;
     struct {
     } return_to_lobby;
 } PacketData;

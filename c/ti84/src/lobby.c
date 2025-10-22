@@ -6,16 +6,14 @@
 #include <stdio.h>
 #include <ti/getcsc.h>
 
-static bool READY = false;
-
-void ready() {
-    READY = !READY;
-    PacketData ready = {.waiting_status = {.ready = READY}};
-    Packet packet = {.data = ready, .tag = PACKET_WAITING_STATUS};
+void send_ready(bool ready) {
+    PacketData data = {.waiting_status = {.ready = ready}};
+    Packet packet = {.data = data, .tag = PACKET_WAITING_STATUS};
     serialize_packet(&packet);
 }
 
 bool lobby(Packet *packet) {
+    bool ready = false;
     gfx_SetDrawBuffer();
 
     while (true) {
@@ -25,7 +23,8 @@ bool lobby(Packet *packet) {
         }
 
         if (key == sk_Enter) {
-            ready();
+            ready = !ready;
+            send_ready(ready);
         }
 
         if (deserialize_packet(packet) && packet->tag == PACKET_ROUND_LOADING)

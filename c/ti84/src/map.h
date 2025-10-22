@@ -11,3 +11,4 @@ void render_map(void);
 void guess(unsigned short x, unsigned short y);
 void draw_cursor(unsigned short x, unsigned short y, Color color);
 void clear_cursor(short px, short py);
+unsigned char convert_color(Color color);
