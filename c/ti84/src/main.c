@@ -57,15 +57,15 @@ bool get_options(ClientOptions *options) {
     }
 
     switch (key) {
-        case sk_0:
-            options->color = RED;
-            break;
-        case sk_1:
-            options->color = BLUE;
-            break;
-        case sk_2:
-            options->color = GREEN;
-            break;
+    case sk_0:
+        options->color = RED;
+        break;
+    case sk_1:
+        options->color = BLUE;
+        break;
+    case sk_2:
+        options->color = GREEN;
+        break;
     }
 
     return true;
@@ -111,7 +111,7 @@ bool init() {
         usb_HandleEvents();
     };
 
-    PacketData data = {.init = { .options = options }};
+    PacketData data = {.init = {.options = options}};
     Packet packet = {.data = data, .tag = PACKET_INIT};
     serialize_packet(&packet);
 

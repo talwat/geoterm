@@ -4,7 +4,7 @@ use std::{
 };
 
 use futures::future::join_all;
-use shared::{Packet, RoundResult, PORT};
+use shared::{PORT, Packet, RoundResult};
 use tokio::{
     io::AsyncWriteExt,
     net::{TcpListener, TcpStream},
