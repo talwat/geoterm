@@ -17,8 +17,12 @@ void draw_coord(Coordinate coord, Color color, bool cross) {
 
     if (cross) {
         gfx_SetColor(convert_color(color));
+        gfx_Line(x + 4, y + 5, x - 4, y - 3);
         gfx_Line(x + 4, y + 4, x - 4, y - 4);
+        gfx_Line(x + 4, y + 3, x - 4, y - 5);
+        gfx_Line(x - 4, y + 5, x + 4, y - 3);
         gfx_Line(x - 4, y + 4, x + 4, y - 4);
+        gfx_Line(x - 4, y + 3, x + 4, y - 5);
     } else {
         draw_cursor(x, y, color);
     }

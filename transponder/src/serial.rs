@@ -16,11 +16,13 @@ impl Serial {
         loop {
             match Packet::deserialize(&mut reader).await {
                 Ok(packet) => {
-                    eprintln!("transponder: server-bound serial packet: {packet:?}");
+                    eprintln!("transponder(serial): server-bound serial packet: {packet:?}");
                     self.writer.write_packet(packet).await?;
                 }
                 Err(error) => {
-                    eprintln!("transponder: error parsing server-bound serial packet: {error:?}");
+                    eprintln!(
+                        "transponder(serial): error parsing server-bound serial packet: {error:?}"
+                    );
                     // TODO: Don't just quit like this, weakling.
                     break Ok(());
                 }
@@ -49,13 +51,12 @@ impl Serial {
             else {
                 continue;
             };
-            eprintln!("transponder: new serial connection: {path}");
-
+            eprintln!("transponder(serial): new serial connection: {path}");
             self.tx.send(Message::Serial(writer)).await?;
 
             let result = self.connect(reader).await;
             self.writer.write_packet(Packet::SoftQuit).await?;
-            eprintln!("transponder: lost serial connection");
+            eprintln!("transponder(serial): lost serial connection");
             if let Err(error) = result {
                 eprintln!("-> {error:?}");
             }

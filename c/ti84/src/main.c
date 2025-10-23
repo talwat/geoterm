@@ -1,6 +1,7 @@
 #include <graphx.h>
 #include <srldrvce.h>
 #include <stdbool.h>
+#include <string.h>
 
 #include <ti/getcsc.h>
 #include <ti/screen.h>
@@ -13,6 +14,62 @@
 #include "serialize.h"
 #include "shared.h"
 #include "utils.h"
+
+const char *CSC_CHARS =
+    "\0\0\0\0\0\0\0\0\0\0\"WRMH\0\0?[VQLG\0\0:ZUPKFC\0 YTOJEB\0\0XSNIDA\0\0\0\0\0\0\0\0";
+
+bool prompt_name(char *buffer) {
+    uint8_t key, i = 0;
+    while ((key = os_GetCSC()) != sk_Enter) {
+        if (key == sk_Clear)
+            return false;
+
+        usb_HandleEvents();
+
+        if (CSC_CHARS[key]) {
+            char print[2] = {CSC_CHARS[key], 0};
+            os_PutStrLine(&print);
+            buffer[i++] = CSC_CHARS[key];
+        }
+    }
+
+    return true;
+}
+
+bool get_options(ClientOptions *options) {
+    os_PutStrFull("username: ");
+    memset(options->user, 0, 16);
+    if (!prompt_name(options->user))
+        return false;
+
+    os_SetCursorPos(3, 0);
+    os_PutStrFull("color:");
+    os_SetCursorPos(4, 2);
+    os_PutStrFull("0 = red      1 = green");
+    os_SetCursorPos(5, 2);
+    os_PutStrFull("2 = green    3 = cyan");
+    os_SetCursorPos(6, 2);
+    os_PutStrFull("4 = magenta  5 = yellow");
+
+    uint8_t key = 0;
+    while (!(key = os_GetCSC())) {
+        usb_HandleEvents();
+    }
+
+    switch (key) {
+        case sk_0:
+            options->color = RED;
+            break;
+        case sk_1:
+            options->color = BLUE;
+            break;
+        case sk_2:
+            options->color = GREEN;
+            break;
+    }
+
+    return true;
+}
 
 bool init() {
     os_ClrHome();
@@ -29,17 +86,18 @@ bool init() {
             return false;
     }
 
-    // Stall to wait for transponder.
-    for (volatile unsigned int i = 0; i < 100000; i++)
-        usb_HandleEvents();
+    ClientOptions options;
+    if (!get_options(&options))
+        return false;
 
-    os_SetCursorPos(1, 0);
+    os_ClrHome();
+    os_SetCursorPos(0, 0);
     os_PutStrFull("initialized serial! :)");
 
-    os_SetCursorPos(3, 0);
+    os_SetCursorPos(2, 0);
     os_PutStrFull("controls: enter to guess, + to submit, clear to quit");
 
-    os_SetCursorPos(6, 0);
+    os_SetCursorPos(5, 0);
     os_PutStrFull("press any key to continue");
 
     while (os_GetCSC())
@@ -53,7 +111,7 @@ bool init() {
         usb_HandleEvents();
     };
 
-    PacketData data = {.init = {.options = {.color = GREEN, .user = "tal"}}};
+    PacketData data = {.init = { .options = options }};
     Packet packet = {.data = data, .tag = PACKET_INIT};
     serialize_packet(&packet);
 

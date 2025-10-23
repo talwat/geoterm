@@ -21,7 +21,7 @@ pub mod image;
 pub mod lobby;
 pub mod serializers;
 
-pub const PORT: u16 = 4000;
+pub const PORT: u16 = 3000;
 pub const LOCALHOST: SocketAddrV4 = SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), PORT);
 
 #[derive(Clone, Debug, PartialEq)]

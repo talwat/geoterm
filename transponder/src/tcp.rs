@@ -1,4 +1,6 @@
-use shared::{BufferedSplitExt, LOCALHOST, Packet, PacketReadExt, serializers::Serialize};
+use std::net::SocketAddrV4;
+
+use shared::{BufferedSplitExt, Packet, PacketReadExt, serializers::Serialize};
 use tokio::{
     net::TcpStream,
     select,
@@ -13,7 +15,8 @@ pub struct TCP {
 }
 
 impl TCP {
-    pub async fn listen(mut self) -> eyre::Result<()> {
+    pub async fn listen(mut self, address: SocketAddrV4) -> eyre::Result<()> {
+        eprintln!("transponder(tcp): connected to {address}");
         let mut writer = None;
 
         loop {
@@ -33,9 +36,9 @@ impl TCP {
             };
 
             if matches!(&packet, Packet::Round { .. }) {
-                eprintln!("transponder: round packet");
+                eprintln!("transponder(tcp): round packet");
             } else {
-                eprintln!("transponder: client-bound tcp packet: {packet:?}");
+                eprintln!("transponder(tcp): client-bound tcp packet: {packet:?}");
             }
 
             let Err(error) = packet.serialize(&mut writer.as_mut().unwrap()).await else {
@@ -47,8 +50,11 @@ impl TCP {
         }
     }
 
-    pub async fn init(rx: mpsc::Receiver<Message>) -> eyre::Result<(Self, shared::Writer)> {
-        let tcp = TcpStream::connect(LOCALHOST).await?;
+    pub async fn init(
+        rx: mpsc::Receiver<Message>,
+        address: SocketAddrV4,
+    ) -> eyre::Result<(Self, shared::Writer)> {
+        let tcp = TcpStream::connect(address).await?;
         let (reader, writer) = tcp.buffered_split();
 
         Ok((Self { reader, rx }, writer))
