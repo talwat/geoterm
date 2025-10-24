@@ -1,10 +1,10 @@
 [package]
-name = "client"
+name = "tui"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-shared = { path = "../shared" }
+shared = { path = "../../shared" }
 eyre = "0.6.12"
 futures = "0.3.31"
 thiserror = "2.0.16"

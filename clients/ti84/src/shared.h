@@ -46,7 +46,7 @@ typedef struct {
 typedef struct {
     size_t len;
     LobbyClient *clients;
-} Clients;
+} LobbyClients;
 
 typedef struct {
     bool has_guess;
@@ -70,18 +70,18 @@ typedef union {
     struct {
         size_t id;
         ClientOptions options;
-        Clients lobby;
+        LobbyClients lobby;
     } confirmed;
     struct {
         LobbyAction action;
         size_t user;
-        Clients lobby;
+        LobbyClients lobby;
     } lobby_event;
     struct {
         bool ready;
     } waiting_status;
     struct {
-        Clients lobby;
+        LobbyClients lobby;
     } round_loading;
     struct {
         size_t number;

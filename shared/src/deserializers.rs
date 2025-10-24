@@ -1,7 +1,4 @@
-use crate::{
-    ClientOptions, Color, Coordinate, Error, Packet, Player, RoundResult,
-    lobby::{self, Clients},
-};
+use crate::{ClientOptions, Color, Coordinate, Error, Packet, Player, RoundResult, lobby};
 use bytes::Bytes;
 use tokio::io::{AsyncRead, AsyncReadExt};
 
@@ -84,7 +81,7 @@ impl<R: AsyncRead + Unpin + Send> Deserialize<R> for RoundResult {
     }
 }
 
-impl<R: AsyncRead + Unpin + Send> Deserialize<R> for Clients {
+impl<R: AsyncRead + Unpin + Send> Deserialize<R> for lobby::Clients {
     async fn deserialize(reader: &mut R) -> Result<Self, Error> {
         let len = reader.read_u32().await? as usize;
         let mut clients = Vec::with_capacity(len);
@@ -105,18 +102,18 @@ impl<R: AsyncRead + Unpin + Send> Deserialize<R> for Packet {
             2 => Ok(Self::Confirmed {
                 id: reader.read_u32().await? as usize,
                 options: ClientOptions::deserialize(reader).await?,
-                lobby: Clients::deserialize(reader).await?,
+                lobby: lobby::Clients::deserialize(reader).await?,
             }),
             3 => Ok(Self::LobbyEvent {
                 action: unsafe { std::mem::transmute(reader.read_u8().await?) },
                 user: reader.read_u32().await? as usize,
-                lobby: Clients::deserialize(reader).await?,
+                lobby: lobby::Clients::deserialize(reader).await?,
             }),
             4 => Ok(Self::WaitingStatus {
                 ready: reader.read_u8().await? != 0,
             }),
             5 => Ok(Self::RoundLoading {
-                lobby: Clients::deserialize(reader).await?,
+                lobby: lobby::Clients::deserialize(reader).await?,
             }),
             6 => {
                 let number = reader.read_u32().await? as usize;

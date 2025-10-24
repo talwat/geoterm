@@ -70,7 +70,7 @@ static void deserialize_player(Player *p) {
     }
 }
 
-static void deserialize_clients(Clients *lobby) {
+static void deserialize_clients(LobbyClients *lobby) {
     lobby->len = read_u32();
     LOBBY_LEN = lobby->len;
     lobby->clients = LOBBY;

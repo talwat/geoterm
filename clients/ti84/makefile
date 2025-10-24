@@ -2,9 +2,7 @@ NAME = GEOTERM
 DESCRIPTION = "Geoguessr calculator edition"
 COMPRESSED = NO
 
-CFLAGS = -Wall -Wextra -Oz -I.. -Isrc/packets
-CXXFLAGS = -Wall -Wextra -Oz -I.. -Isrc/packets
-
+CFLAGS = -Wall -Wextra -Oz -Isrc/packets
 
 # ----------------------------
 

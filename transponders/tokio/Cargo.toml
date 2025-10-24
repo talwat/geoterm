@@ -1,11 +1,11 @@
 [package]
-name = "transponder"
+name = "tokio-transponder"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-shared = { path = "../shared" }
+shared = { path = "../../shared" }
 eyre = "0.6.12"
-tokio = { version = "1.47.1", features = ["io-util", "rt", "macros", "net", "sync", "time"] }
+tokio = { version = "1.47.1", features = ["rt", "macros", "net", "sync", "time"] }
 tokio-serial = "5.4.5"
 clap = { version = "4.5.50", features = ["derive"] }
