@@ -23,6 +23,9 @@ bool prompt_name(char *buffer) {
     while ((key = os_GetCSC()) != sk_Enter) {
         if (key == sk_Clear)
             return false;
+        
+        if (i >= 16)
+            return true;
 
         usb_HandleEvents();
 

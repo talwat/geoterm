@@ -29,7 +29,6 @@ async fn main() -> eyre::Result<()> {
     let (tx, rx) = mpsc::channel(8);
 
     let address = SocketAddrV4::new(Ipv4Addr::from_str(&args.address)?, PORT);
-    eprintln!("transponder: attempting to connect to {address}...");
     let (tcp, writer) = TCP::init(rx, address.clone()).await?;
     let serial = Serial::new(writer, tx).await;
 
