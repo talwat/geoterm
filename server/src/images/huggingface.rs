@@ -59,7 +59,7 @@ pub async fn fetch(index: usize) -> Result<Data, Error> {
     );
     let resp = reqwest::get(url).await?;
     let bytes = resp.bytes().await?;
-    let string = str::from_utf8(&bytes)?;
+    let string = std::str::from_utf8(&bytes)?;
     let json = json::parse(string)?;
 
     Ok(parse(json).unwrap())

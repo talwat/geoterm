@@ -13,7 +13,9 @@ impl<R: AsyncRead + Unpin + Send> Deserialize<R> for ClientOptions {
 
         let mut user = [0; 16];
         reader.read_exact(&mut user).await?;
-        let user = str::from_utf8(&user)?.trim_end_matches('\0').to_owned();
+        let user = std::str::from_utf8(&user)?
+            .trim_end_matches('\0')
+            .to_owned();
 
         Ok(Self { color, user })
     }
