@@ -1,6 +1,6 @@
 # Protocol
 
-> [!INFO]
+> ![INFO]
 > The protocol is still being worked on, so nothing is entirely concrete.
 > In addition, the documentation is still a work-in-progress.
 
